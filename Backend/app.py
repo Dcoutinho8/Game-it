@@ -11,6 +11,7 @@ from routes.steam  import steam_bp
 from routes.gemini import gemini_bp
 from routes.notes  import notes_bp
 from routes.auth   import auth_bp
+from routes.social import social_bp
 
 app = Flask(
     __name__,
@@ -24,6 +25,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(steam_bp)
 app.register_blueprint(gemini_bp)
 app.register_blueprint(notes_bp)
+app.register_blueprint(social_bp)
 
 
 @app.route('/')

@@ -56,44 +56,23 @@
         <section class="panel pcard">
             <h3 class="pcard-title">Jogado Recentemente</h3>
             <div id="recent-played" class="recent-list">
-                <div class="recent-loading">
-                    <div class="spinner-sm"></div>
-                </div>
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
             </div>
         </section>
 
         <!-- Avaliações -->
         <section class="panel pcard">
             <h3 class="pcard-title">Avaliações</h3>
-            <div class="rating-bars">
-                <div class="rating-row"><span class="rating-num">5</span><div class="rating-track"><div class="rating-fill" style="width:92%"></div></div></div>
-                <div class="rating-row"><span class="rating-num">4</span><div class="rating-track"><div class="rating-fill" style="width:74%"></div></div></div>
-                <div class="rating-row"><span class="rating-num">3</span><div class="rating-track"><div class="rating-fill" style="width:60%"></div></div></div>
-                <div class="rating-row"><span class="rating-num">2</span><div class="rating-track"><div class="rating-fill" style="width:48%"></div></div></div>
-                <div class="rating-row"><span class="rating-num">1</span><div class="rating-track"><div class="rating-fill" style="width:30%"></div></div></div>
+            <div id="ratings-box" class="rating-bars">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
             </div>
         </section>
 
         <!-- Plataformas mais usadas -->
         <section class="panel pcard">
             <h3 class="pcard-title">Plataformas mais usadas</h3>
-            <div class="platform-bars">
-                <div class="platform-row">
-                    <span class="platform-ico"><i class="fa-brands fa-playstation"></i></span>
-                    <div class="rating-track"><div class="rating-fill" style="width:90%"></div></div>
-                </div>
-                <div class="platform-row">
-                    <span class="platform-ico"><i class="fa-brands fa-xbox"></i></span>
-                    <div class="rating-track"><div class="rating-fill" style="width:68%"></div></div>
-                </div>
-                <div class="platform-row">
-                    <span class="platform-ico"><i class="fa-brands fa-steam"></i></span>
-                    <div class="rating-track"><div class="rating-fill" style="width:58%"></div></div>
-                </div>
-                <div class="platform-row">
-                    <span class="platform-ico"><i class="fa-solid fa-gamepad"></i></span>
-                    <div class="rating-track"><div class="rating-fill" style="width:44%"></div></div>
-                </div>
+            <div id="platforms-box" class="platform-bars">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
             </div>
         </section>
     </aside>
@@ -103,35 +82,47 @@
 
         <!-- Profile Header -->
         <section class="panel profile-header">
-            <div class="profile-banner"></div>
+            <div class="profile-banner" id="profile-banner">
+                <button class="btn-change-cover" onclick="document.getElementById('cover-input').click()" title="Trocar capa">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+            </div>
 
             <div class="fav-games">
-                <p class="fav-title">Jogos Favoritos</p>
-                <div class="fav-covers">
-                    <div class="fav-cover"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1091500/library_600x900.jpg" alt="Cyberpunk 2077" onerror="this.style.display='none'"></div>
-                    <div class="fav-cover"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1174180/library_600x900.jpg" alt="Red Dead Redemption 2" onerror="this.style.display='none'"></div>
-                    <div class="fav-cover"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/374320/library_600x900.jpg" alt="Dark Souls III" onerror="this.style.display='none'"></div>
+                <p class="fav-title">
+                    Jogos Favoritos
+                    <button class="btn-edit-fav" onclick="abrirSeletorFavoritos()" title="Editar favoritos">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </p>
+                <div class="fav-covers" id="fav-covers">
+                    <div class="fav-cover empty"></div>
+                    <div class="fav-cover empty"></div>
+                    <div class="fav-cover empty"></div>
                 </div>
             </div>
 
-            <button class="btn-edit-profile">Editar Perfil</button>
+            <button class="btn-edit-profile" onclick="abrirEditarPerfil()">Editar Perfil</button>
 
-            <div class="profile-avatar">
+            <div class="profile-avatar" id="profile-avatar">
                 <img id="profile-avatar-img" src="/static/img/Game It Logo.svg" alt="Avatar">
+                <button class="btn-change-avatar" onclick="document.getElementById('avatar-input').click()" title="Trocar foto">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
             </div>
 
             <div class="profile-info">
                 <h2 class="profile-name">
-                    <span id="profile-nickname">@Nickname</span>
+                    <span id="profile-nickname">@Jogador</span>
                     <i class="fa-solid fa-circle-check verified"></i>
                 </h2>
-                <p class="profile-bio">Eu sou uma bio!</p>
+                <p class="profile-bio" id="profile-bio">Eu sou uma bio!</p>
                 <p class="profile-meta">
-                    <i class="fa-regular fa-calendar"></i> Entrou em Agosto de 2019
+                    <i class="fa-regular fa-calendar"></i> <span id="profile-joined">Recentemente</span>
                 </p>
                 <p class="profile-follow">
-                    <span class="follow-num">100</span> <span class="follow-lbl">Seguindo</span>
-                    <span class="follow-num">100</span> <span class="follow-lbl">Seguidores</span>
+                    <span class="follow-num" id="follow-following">0</span> <span class="follow-lbl">Seguindo</span>
+                    <span class="follow-num" id="follow-followers">0</span> <span class="follow-lbl">Seguidores</span>
                 </p>
             </div>
         </section>
@@ -150,57 +141,56 @@
 
         <!-- Posts panel -->
         <div id="ppanel-posts" class="ppanel">
-            <article class="post panel">
-                <button class="post-menu"><i class="fa-solid fa-ellipsis"></i></button>
-                <div class="post-head">
-                    <div class="post-avatar"><img src="/static/img/Game It Logo.svg" alt=""></div>
-                    <div class="post-author">
-                        <span class="post-name">@Nickname</span>
-                        <i class="fa-solid fa-circle-check verified sm"></i>
-                        <span class="post-time">· 5h</span>
+            <!-- Composer -->
+            <div class="composer panel">
+                <div class="composer-avatar"><img id="composer-avatar" src="/static/img/Game It Logo.svg" alt=""></div>
+                <div class="composer-body">
+                    <textarea id="composer-text" class="composer-input" rows="2"
+                              placeholder="No que você está jogando?" maxlength="1000"
+                              oninput="autoGrow(this)"></textarea>
+                    <div class="composer-actions">
+                        <span class="composer-hint">Use #hashtags para entrar no Trending</span>
+                        <button class="btn-post" onclick="publicarPost()">
+                            <i class="fa-solid fa-paper-plane"></i> Postar
+                        </button>
                     </div>
                 </div>
-                <p class="post-text">Não aguento mais, quero jogar GTA VI :(</p>
-                <div class="post-actions">
-                    <button class="pact like"><i class="fa-regular fa-heart"></i> <span>5M</span></button>
-                    <button class="pact comment"><i class="fa-regular fa-comment"></i> <span>1M</span></button>
-                    <button class="pact share"><i class="fa-solid fa-retweet"></i> <span>2M</span></button>
-                    <button class="pact send"><i class="fa-solid fa-arrow-up-from-bracket"></i></button>
-                </div>
-            </article>
+            </div>
 
-            <article class="post panel">
-                <button class="post-menu"><i class="fa-solid fa-ellipsis"></i></button>
-                <div class="post-head">
-                    <div class="post-avatar"><img src="/static/img/Game It Logo.svg" alt=""></div>
-                    <div class="post-author">
-                        <span class="post-name">@Nickname</span>
-                        <i class="fa-solid fa-circle-check verified sm"></i>
-                        <span class="post-time">· 22 Dez, 2024</span>
-                    </div>
-                </div>
-                <p class="post-text">Prepare-se para uma nova era em Los Santos! A DLC Los Santos Crimewave chegou para elevar o caos a outro nível. Novas missões, carros, armas e mais. Não perca a oportunidade de dominar as ruas e expandir seus impérios. #LosSantosCrimewave #RockstarGames</p>
-                <div class="post-actions">
-                    <button class="pact like"><i class="fa-regular fa-heart"></i> <span>5M</span></button>
-                    <button class="pact comment"><i class="fa-regular fa-comment"></i> <span>1M</span></button>
-                    <button class="pact share"><i class="fa-solid fa-retweet"></i> <span>2M</span></button>
-                    <button class="pact send"><i class="fa-solid fa-arrow-up-from-bracket"></i></button>
-                </div>
-            </article>
+            <div id="posts-list" class="posts-list">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
+            </div>
         </div>
 
-        <!-- Other tab panels -->
+        <!-- Reviews -->
         <div id="ppanel-reviews" class="ppanel" style="display:none;">
-            <div class="panel empty-panel"><i class="fa-solid fa-star"></i><p>Nenhuma review ainda.</p></div>
+            <div class="reviews-toolbar">
+                <button class="btn-new-review" onclick="abrirNovaReview()">
+                    <i class="fa-solid fa-star"></i> Nova Avaliação
+                </button>
+            </div>
+            <div id="reviews-list">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
+            </div>
         </div>
+
+        <!-- Listas -->
         <div id="ppanel-listas" class="ppanel" style="display:none;">
             <div class="panel empty-panel"><i class="fa-solid fa-list"></i><p>Nenhuma lista ainda.</p></div>
         </div>
+
+        <!-- Jogos -->
         <div id="ppanel-jogos" class="ppanel" style="display:none;">
-            <div class="panel empty-panel"><i class="fa-solid fa-gamepad"></i><p>Nenhum jogo destacado ainda.</p></div>
+            <div id="jogos-grid" class="jogos-mini-grid">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
+            </div>
         </div>
+
+        <!-- Curtidas -->
         <div id="ppanel-curtidas" class="ppanel" style="display:none;">
-            <div class="panel empty-panel"><i class="fa-regular fa-heart"></i><p>Nenhuma curtida ainda.</p></div>
+            <div id="curtidas-list">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
+            </div>
         </div>
     </main>
 
@@ -210,51 +200,114 @@
         <!-- Amigos -->
         <section class="panel pcard">
             <h3 class="pcard-title">Amigos</h3>
-            <div class="friend-list">
-                <div class="friend">
-                    <div class="friend-av" style="background:linear-gradient(135deg,#b91c1c,#7f1d1d)"><i class="fa-solid fa-khanda"></i></div>
-                    <div class="friend-info">
-                        <p class="friend-name">Kratos <i class="fa-solid fa-circle online"></i></p>
-                        <p class="friend-status">Jogando God of War <i class="fa-brands fa-playstation"></i></p>
-                    </div>
-                </div>
-                <div class="friend">
-                    <div class="friend-av" style="background:linear-gradient(135deg,#15803d,#14532d)"><i class="fa-solid fa-helmet-safety"></i></div>
-                    <div class="friend-info">
-                        <p class="friend-name">Master Chief <i class="fa-solid fa-circle online"></i></p>
-                        <p class="friend-status">Jogando Halo 3 <i class="fa-brands fa-xbox"></i></p>
-                    </div>
-                </div>
-                <div class="friend">
-                    <div class="friend-av" style="background:linear-gradient(135deg,#2563eb,#1e3a8a)"><i class="fa-solid fa-bolt"></i></div>
-                    <div class="friend-info">
-                        <p class="friend-name">Powder (Jinx) <i class="fa-regular fa-circle offline"></i></p>
-                        <p class="friend-status">Jogando League of Legends</p>
-                    </div>
-                </div>
-                <div class="friend">
-                    <div class="friend-av" style="background:linear-gradient(135deg,#525252,#262626)"><i class="fa-solid fa-pen-nib"></i></div>
-                    <div class="friend-info">
-                        <p class="friend-name">Alan Wake <i class="fa-regular fa-circle offline"></i></p>
-                        <p class="friend-status">Jogando Alan Wake <i class="fa-solid fa-gamepad"></i></p>
-                    </div>
-                </div>
+            <div id="friends-list" class="friend-list">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
             </div>
-            <a href="#" class="show-more">Mostrar mais</a>
+            <a href="#" class="show-more" id="friends-more" style="display:none;">Mostrar mais</a>
         </section>
 
         <!-- Trending Topics -->
         <section class="panel pcard">
             <h3 class="pcard-title">Trending Topics</h3>
-            <div class="trend-list">
-                <div class="trend"><p class="trend-loc">Trend no Brasil</p><p class="trend-tag">GTA VI</p><p class="trend-count">320k posts</p></div>
-                <div class="trend"><p class="trend-loc">Trend no Brasil</p><p class="trend-tag">Davy Jones</p><p class="trend-count">30k posts</p></div>
-                <div class="trend"><p class="trend-loc">Trend no Brasil</p><p class="trend-tag">Rockstar</p><p class="trend-count">175k posts</p></div>
-                <div class="trend"><p class="trend-loc">Trend no Brasil</p><p class="trend-tag">Miami</p><p class="trend-count">40k posts</p></div>
+            <div id="trending-list" class="trend-list">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
             </div>
-            <a href="#" class="show-more">Mostrar mais</a>
         </section>
     </aside>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="enviarImagem('avatar', this)">
+<input type="file" id="cover-input"  accept="image/*" style="display:none" onchange="enviarImagem('cover', this)">
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: Editar Perfil
+══════════════════════════════════════════════════ -->
+<div id="modal-edit" class="pmodal-overlay">
+    <div class="pmodal">
+        <div class="pmodal-head">
+            <h2>Editar Perfil</h2>
+            <button class="pmodal-close" onclick="fecharModal('modal-edit')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="pmodal-body">
+            <label class="pfield-label">Nome de exibição</label>
+            <input id="edit-nickname" class="pfield" type="text" placeholder="Seu nome" maxlength="40">
+
+            <label class="pfield-label">Bio</label>
+            <textarea id="edit-bio" class="pfield" rows="3" placeholder="Fale sobre você..." maxlength="200"></textarea>
+
+            <div class="pmodal-imgrow">
+                <button class="btn-secondary" onclick="document.getElementById('avatar-input').click()">
+                    <i class="fa-solid fa-camera"></i> Trocar foto
+                </button>
+                <button class="btn-secondary" onclick="document.getElementById('cover-input').click()">
+                    <i class="fa-solid fa-image"></i> Trocar capa
+                </button>
+            </div>
+        </div>
+        <div class="pmodal-foot">
+            <button class="btn-secondary" onclick="fecharModal('modal-edit')">Cancelar</button>
+            <button class="btn-primary" onclick="salvarPerfil()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: Seletor de Jogos Favoritos
+══════════════════════════════════════════════════ -->
+<div id="modal-fav" class="pmodal-overlay">
+    <div class="pmodal large">
+        <div class="pmodal-head">
+            <h2>Escolha 3 jogos favoritos</h2>
+            <button class="pmodal-close" onclick="fecharModal('modal-fav')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="pmodal-subbar">
+            <input id="fav-search" class="pfield" type="text" placeholder="Buscar na biblioteca..."
+                   oninput="filtrarBibliotecaFav(this.value)">
+            <span id="fav-counter" class="fav-counter">0/3 selecionados</span>
+        </div>
+        <div class="pmodal-body">
+            <div id="fav-grid" class="fav-picker-grid">
+                <div class="recent-loading"><div class="spinner-sm"></div></div>
+            </div>
+        </div>
+        <div class="pmodal-foot">
+            <button class="btn-secondary" onclick="fecharModal('modal-fav')">Cancelar</button>
+            <button class="btn-primary" onclick="salvarFavoritos()">Salvar favoritos</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: Nova Avaliação
+══════════════════════════════════════════════════ -->
+<div id="modal-review" class="pmodal-overlay">
+    <div class="pmodal">
+        <div class="pmodal-head">
+            <h2>Nova Avaliação</h2>
+            <button class="pmodal-close" onclick="fecharModal('modal-review')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="pmodal-body">
+            <label class="pfield-label">Jogo</label>
+            <select id="review-game" class="pfield"></select>
+
+            <label class="pfield-label">Nota</label>
+            <div id="review-stars" class="star-picker">
+                <i class="fa-regular fa-star" data-v="1"></i>
+                <i class="fa-regular fa-star" data-v="2"></i>
+                <i class="fa-regular fa-star" data-v="3"></i>
+                <i class="fa-regular fa-star" data-v="4"></i>
+                <i class="fa-regular fa-star" data-v="5"></i>
+            </div>
+
+            <label class="pfield-label">Comentário (opcional)</label>
+            <textarea id="review-text" class="pfield" rows="3" placeholder="O que achou do jogo?" maxlength="1000"></textarea>
+        </div>
+        <div class="pmodal-foot">
+            <button class="btn-secondary" onclick="fecharModal('modal-review')">Cancelar</button>
+            <button class="btn-primary" onclick="salvarReview()">Publicar avaliação</button>
+        </div>
+    </div>
 </div>
 
 <!-- Toast -->

@@ -1,7 +1,7 @@
 import os
 import requests
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, session, request
 from psycopg.types.json import Json
 from database import get_connection
 
@@ -238,12 +238,18 @@ def recent_games():
     key     = get_key()
     steamid = get_steamid()
 
+    try:
+        count = int(request.args.get('count', 3))
+    except (TypeError, ValueError):
+        count = 3
+    count = max(1, min(count, 12))
+
     if not key or not steamid:
         return jsonify({'status': 'error', 'message': 'STEAM_API_KEY ou STEAM_ID não configurado no .env'})
 
     url = (
         f'{STEAM_API}/IPlayerService/GetRecentlyPlayedGames/v1/'
-        f'?key={key}&steamid={steamid}&count=6'
+        f'?key={key}&steamid={steamid}&count={count}'
     )
     try:
         r     = requests.get(url, timeout=10)
@@ -272,7 +278,7 @@ def recent_games():
             'appid':        appid,
             'name':         g.get('name', 'Jogo Desconhecido'),
             'img':          (
-                f"https://media.steampowered.com/steam/apps/{appid}/header.jpg"
+                f"https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
             ),
             'playtime_forever': g.get('playtime_forever', 0),
             'playtime_2weeks':  g.get('playtime_2weeks', 0),
@@ -281,4 +287,67 @@ def recent_games():
         })
 
     return jsonify({'status': 'success', 'games': resultado})
+
+
+# ── Amigos da Steam ─────────────────────────────────────
+@steam_bp.route('/api/steam/friends')
+def steam_friends():
+    key     = get_key()
+    steamid = get_steamid()
+    if not key or not steamid:
+        return jsonify({'status': 'error', 'message': 'Steam não configurado', 'friends': []})
+
+    try:
+        url = (f'{STEAM_API}/ISteamUser/GetFriendList/v1/'
+               f'?key={key}&steamid={steamid}&relationship=friend')
+        flist = requests.get(url, timeout=8).json().get('friendslist', {}).get('friends', [])
+    except Exception:
+        # Lista de amigos privada ou erro
+        return jsonify({'status': 'success', 'friends': []})
+
+    ids = [f.get('steamid') for f in flist[:12] if f.get('steamid')]
+    if not ids:
+        return jsonify({'status': 'success', 'friends': []})
+
+    try:
+        url_sum = (f'{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/'
+                   f'?key={key}&steamids={",".join(ids)}')
+        players = requests.get(url_sum, timeout=8).json().get('response', {}).get('players', [])
+    except Exception:
+        return jsonify({'status': 'success', 'friends': []})
+
+    friends = []
+    for p in players:
+        online = p.get('personastate', 0) != 0
+        friends.append({
+            'name':    p.get('personaname', 'Amigo'),
+            'avatar':  p.get('avatarfull') or p.get('avatar'),
+            'online':  online,
+            'playing': p.get('gameextrainfo')  # nome do jogo se estiver jogando
+        })
+    # Online primeiro
+    friends.sort(key=lambda f: (not f['online'], not f['playing']))
+    return jsonify({'status': 'success', 'friends': friends})
+
+
+# ── Biblioteca resumida (p/ seletor de favoritos) ───────
+@steam_bp.route('/api/steam/library')
+def steam_library():
+    user_id = session.get('user_id', 1)
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute(
+        "SELECT appid, name FROM user_games WHERE user_id=%s ORDER BY name ASC",
+        (user_id,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    jogos = [{
+        'appid': r['appid'],
+        'name':  r['name'],
+        'cover': f"https://cdn.cloudflare.steamstatic.com/steam/apps/{r['appid']}/library_600x900.jpg",
+        'header': f"https://cdn.cloudflare.steamstatic.com/steam/apps/{r['appid']}/header.jpg"
+    } for r in rows]
+    return jsonify({'status': 'success', 'games': jogos})
 
