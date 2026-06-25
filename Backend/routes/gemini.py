@@ -1,106 +1,132 @@
 import os
 import time
-from flask import Blueprint, jsonify, request
 from google import genai
-from database import get_connection
+from flask import Blueprint, request, jsonify, session
 
-gemini_bp = Blueprint('gemini', __name__)
+gemini_bp  = Blueprint('gemini', __name__)
+MODELO     = 'gemini-2.0-flash'
+MODELO_BCK = 'gemini-2.0-flash-lite'   # ← backup atualizado
+MAX_TENT   = 2
+ESPERA     = 10
 
-_ultima_chamada  = 0.0
-INTERVALO_MINIMO = 20.0
 
-MODELOS_FALLBACK = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-]
+def get_api_key():
+    user_id = session.get('user_id')
+    if user_id:
+        try:
+            from database import get_connection
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("SELECT gemini_api_key FROM users WHERE id = %s", (user_id,))
+            row  = cur.fetchone()
+            cur.close(); conn.close()
+            if row and row.get('gemini_api_key'):
+                return row['gemini_api_key']
+        except Exception:
+            pass
+    return os.getenv('GEMINI_API_KEY')
 
-def _get_cache(appid):
-    conn = get_connection()
-    cur  = conn.cursor()
-    cur.execute("SELECT html_content FROM guide_cache WHERE appid = %s", (appid,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    return row['html_content'] if row else None
 
-def _set_cache(appid, game_name, html):
-    conn = get_connection()
-    cur  = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO guide_cache (appid, game_name, html_content, updated_at)
-        VALUES (%s, %s, %s, NOW())
-        ON CONFLICT (appid) DO UPDATE
-            SET html_content = EXCLUDED.html_content,
-                updated_at   = NOW()
-        """,
-        (appid, game_name, html)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+def chamar_gemini(prompt, modelo=None):
+    modelo  = modelo or MODELO
+    api_key = get_api_key()
+
+    if not api_key:
+        return None, 'API Key não configurada. Acesse ⚙️ Configurações e adicione sua Gemini API Key.'
+
+    client = genai.Client(api_key=api_key)
+
+    for tent in range(1, MAX_TENT + 1):
+        try:
+            print(f"[Gemini] Tentativa {tent}/{MAX_TENT} — modelo: {modelo}")
+            resp = client.models.generate_content(model=modelo, contents=prompt)
+            return resp.text, None
+
+        except Exception as e:
+            err = str(e)
+            print(f"[Gemini] Erro (tentativa {tent}): {err[:120]}")
+
+            if '429' in err:
+                if tent < MAX_TENT:
+                    print(f"[Gemini] Rate limit — aguardando {ESPERA}s...")
+                    time.sleep(ESPERA)
+                elif modelo == MODELO:
+                    print(f"[Gemini] Tentando modelo backup: {MODELO_BCK}")
+                    return chamar_gemini(prompt, MODELO_BCK)
+                else:
+                    return None, (
+                        'Cota da API esgotada. '
+                        'Adicione sua própria Gemini API Key em ⚙️ Configurações.'
+                    )
+            elif '404' in err:
+                return None, f'Modelo {modelo} não disponível. Tente novamente em instantes.'
+            else:
+                return None, err
+
+    return None, 'Falha após todas as tentativas.'
+
 
 @gemini_bp.route('/api/analisar-jogo', methods=['POST'])
 def analisar_jogo():
-    global _ultima_chamada
+    data       = request.json or {}
+    appid      = str(data.get('appid', ''))
+    nome       = data.get('nome', '')
+    conquistas = data.get('conquistas', [])
+    regen      = request.args.get('regen') == '1'
 
-    data  = request.get_json()
-    appid = str(data.get('appid'))
-    nome  = data.get('nome', 'Jogo')
-    regen = request.args.get('regen', '0')
+    if not appid:
+        return jsonify({'status': 'error', 'message': 'appid obrigatório'})
 
-    if regen != '1':
-        cached = _get_cache(appid)
-        if cached:
-            return jsonify({'status': 'success', 'html': cached, 'from_cache': True})
+    if not regen:
+        try:
+            from database import get_connection
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("SELECT html_content FROM guide_cache WHERE appid = %s", (appid,))
+            row  = cur.fetchone()
+            cur.close(); conn.close()
+            if row:
+                return jsonify({'status': 'success', 'html': row['html_content'], 'from_cache': True})
+        except Exception:
+            pass
 
-    agora  = time.time()
-    espera = INTERVALO_MINIMO - (agora - _ultima_chamada)
-    if espera > 0:
-        time.sleep(espera)
+    bloqueadas = [c for c in conquistas if c.get('achieved') == 0]
+    lista_txt  = '\n'.join(
+        f"- {c.get('name', c.get('apiname','?'))}: {c.get('description','Sem descrição')}"
+        for c in bloqueadas[:30]
+    ) or 'Sem conquistas bloqueadas.'
 
     prompt = f"""
-Voce e especialista em conquistas de jogos.
-Crie um guia HTML detalhado para 100% as conquistas de: {nome}.
+Você é especialista em conquistas/troféus de jogos. Analise "{nome}".
+Conquistas não desbloqueadas:
+{lista_txt}
 
-Secoes obrigatorias:
-- Resumo (dificuldade 1-10, tempo estimado)
-- Roteiro Principal (ordem recomendada)
-- Trofeus Perdiveis
-- Colecionaveis
-- Trofeus de Grind
-- Dicas Gerais
-
-Use Tailwind CSS. Fundo #111827, destaque #6366F1, texto #D9D9D9.
-Retorne SOMENTE HTML limpo. Idioma: Portugues do Brasil.
+Gere um guia de platina em HTML (apenas conteúdo interno, sem html/body/head).
+Use h3, p, ul, li, strong. Inclua:
+1. Dificuldade (1-10) e tempo estimado
+2. Dicas gerais
+3. Estratégia para conquistas difíceis
+4. Ordem recomendada
+Responda em português brasileiro.
 """
 
-    client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+    texto, erro = chamar_gemini(prompt)
+    if erro:
+        return jsonify({'status': 'error', 'message': erro})
 
-    for modelo in MODELOS_FALLBACK:
-        for tentativa in range(2):
-            try:
-                _ultima_chamada = time.time()
-                r    = client.models.generate_content(model=modelo, contents=prompt)
-                html = r.text.strip()
+    try:
+        from database import get_connection
+        conn = get_connection()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO guide_cache (appid, game_name, html_content)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (appid) DO UPDATE
+            SET html_content = EXCLUDED.html_content, updated_at = NOW()
+        """, (appid, nome, texto))
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception:
+        pass
 
-                if html.startswith('```'):
-                    html = html.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-
-                _set_cache(appid, nome, html)
-                print(f'[Gemini] Sucesso com: {modelo}')
-                return jsonify({'status': 'success', 'html': html, 'from_cache': False})
-
-            except Exception as e:
-                msg = str(e)
-                print(f'[Gemini] Erro ({modelo}, tentativa {tentativa+1}): {msg[:120]}')
-                if '429' in msg:
-                    if tentativa == 0:
-                        time.sleep(15)
-                    else:
-                        break
-                else:
-                    return jsonify({'status': 'error', 'message': msg})
-
-    return jsonify({'status': 'error', 'message': 'Cota esgotada. Aguarde 1 minuto e tente novamente.'})
+    return jsonify({'status': 'success', 'html': texto, 'from_cache': False})
