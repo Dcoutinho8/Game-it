@@ -14,6 +14,27 @@ def init_db():
     cur  = conn.cursor()
 
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id                 SERIAL        PRIMARY KEY,
+            email              VARCHAR(255)  UNIQUE NOT NULL,
+            password_hash      VARCHAR(255),
+            name               VARCHAR(255),
+            avatar_url         TEXT,
+            provider           VARCHAR(50)   DEFAULT 'email',
+            provider_id        VARCHAR(255),
+            steam_api_key      VARCHAR(255),
+            steam_id           VARCHAR(50),
+            gemini_api_key     VARCHAR(255),
+            two_factor_secret  VARCHAR(255),
+            two_factor_enabled BOOLEAN       DEFAULT FALSE,
+            reset_token        VARCHAR(255),
+            reset_expires      TIMESTAMP,
+            created_at         TIMESTAMP     DEFAULT NOW(),
+            updated_at         TIMESTAMP     DEFAULT NOW()
+        );
+    """)
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS guide_cache (
             appid        VARCHAR(20)  PRIMARY KEY,
             game_name    VARCHAR(255),
@@ -35,9 +56,35 @@ def init_db():
         );
     """)
 
+    # Adiciona user_id se não existir ainda
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='notes' AND column_name='user_id'
+            ) THEN
+                ALTER TABLE notes ADD COLUMN user_id INTEGER;
+            END IF;
+        END$$;
+    """)
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notes_appid ON notes(appid);")
 
     conn.commit()
     cur.close()
     conn.close()
     print("[DB] ✅ Tabelas inicializadas com sucesso.")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_games (
+            id               SERIAL        PRIMARY KEY,
+            user_id          INTEGER       REFERENCES users(id) ON DELETE CASCADE,
+            appid            VARCHAR(20)   NOT NULL,
+            name             VARCHAR(255),
+            playtime_forever INTEGER       DEFAULT 0,
+            img_icon_url     VARCHAR(255),
+            last_synced      TIMESTAMP     DEFAULT NOW(),
+            UNIQUE(user_id, appid)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ugames_user ON user_games(user_id);")

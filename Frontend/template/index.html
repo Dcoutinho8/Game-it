@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game It | Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/img/Game It Logo.svg">
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!--
@@ -22,37 +23,54 @@
 ══════════════════════════════════════════════════ -->
 <nav class="g-nav" id="top-nav">
     <!-- Logo -->
-    <div class="nav-logo">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="32" height="32">
-            <circle cx="60" cy="15" r="13" fill="#6366F1"/>
-            <rect x="56.5" y="26" width="7" height="26" rx="3" fill="#6366F1"/>
-            <ellipse cx="60" cy="52" rx="9" ry="5" fill="#6366F1"/>
-            <ellipse cx="83" cy="67" rx="8.5" ry="5.5" fill="#6366F1"/>
-            <path d="M16,59 L104,59 L93,76 L7,76 Z" fill="#6366F1"/>
-            <path d="M7,76 L93,76 L93,93 L7,93 Z" fill="#4f46e5"/>
-            <path d="M93,76 L104,59 L104,77 L93,93 Z" fill="#3730a3"/>
-        </svg>
-        <span class="nav-title">Game <span style="color:#6366F1">It</span></span>
-    </div>
+<div class="nav-logo">
+    <img src="/static/img/Game It Logo.svg" width="32" height="32" alt="Game It Logo">
+    <span class="nav-title">Game <span style="color:#6366F1">It</span></span>
+</div>
 
-    <!-- Nav Pills -->
-    <div class="nav-pills">
-        <span class="nav-pill active">Home</span>
-        <span class="nav-pill">Review</span>
-        <span class="nav-pill">Perfil</span>
-        <span class="nav-pill">Configurações</span>
-    </div>
+<!-- Nav Pills -->
+<div class="nav-pills">
+    <span class="nav-pill active">Home</span>
+    <span class="nav-pill">Review</span>
+    <span class="nav-pill">Perfil</span>
+    <a href="/configuracoes" class="nav-pill" style="text-decoration:none;">
+        Configurações
+    </a>
+</div>
 
-    <!-- Actions -->
-    <div class="nav-actions">
-        <button class="btn-search" onclick="document.getElementById('search-bar').focus()">
-            <i class="fa-solid fa-magnifying-glass"></i> Pesquisar
-        </button>
-        <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="Alternar tema">
-            <i class="fa-solid fa-sun"></i>
-        </button>
-    </div>
-</nav>
+<!-- Actions -->
+<div class="nav-actions">
+    <!-- Sync -->
+    <button id="btn-sync-dash" onclick="syncJogos()"
+            title="Sincronizar jogos com a Steam"
+            style="display:flex;align-items:center;gap:6px;
+                   background:rgba(99,102,241,.1);
+                   border:1px solid rgba(99,102,241,.25);
+                   border-radius:10px;padding:7px 13px;
+                   color:#6366F1;font-size:13px;font-weight:700;
+                   cursor:pointer;transition:all .2s;">
+        <i class="fa-solid fa-rotate" id="sync-dash-icon"></i>
+        Sync
+    </button>
+
+    <button class="btn-search" onclick="document.getElementById('search-bar').focus()">
+        <i class="fa-solid fa-magnifying-glass"></i> Pesquisar
+    </button>
+
+    <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="Alternar tema">
+        <i class="fa-solid fa-sun"></i>
+    </button>
+
+    <!-- Logout -->
+    <button onclick="fazerLogout()" title="Sair"
+            style="background:rgba(239,68,68,.08);
+                   border:1px solid rgba(239,68,68,.2);
+                   border-radius:10px;padding:7px 13px;
+                   color:#f87171;font-size:13px;font-weight:700;
+                   cursor:pointer;transition:all .2s;">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+    </button>
+</div>
 
 <!-- ══════════════════════════════════════════════════
      LAYOUT

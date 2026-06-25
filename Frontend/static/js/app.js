@@ -486,6 +486,29 @@ async function deletarNote(noteId) {
     }
 }
 
+async function syncJogos() {
+    var icon = document.getElementById('sync-dash-icon');
+    if (icon) icon.style.animation = 'spin 1s linear infinite';
+
+    try {
+        var res  = await fetch('/api/steam-sync', { method: 'POST' });
+        var data = await res.json();
+        if (data.status === 'success') {
+            console.log('[Sync]', data.message);
+            // Recarrega os jogos
+            carregarJogos && carregarJogos();
+        }
+    } catch(e) {
+        console.error('[Sync]', e);
+    }
+
+    if (icon) icon.style.animation = '';
+}
+
+// Auto-sync a cada 2h
+setInterval(syncJogos, 2 * 60 * 60 * 1000);
+
+
 function atualizarBadgeNotes(count) {
     var badge = document.getElementById('notes-badge');
     if (count > 0) {
@@ -590,6 +613,40 @@ document.getElementById('modal-guia').addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') fecharModal();
 });
+
+// ── Logout ────────────────────────────────────────────
+async function fazerLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+}
+
+// ── Sync manual ───────────────────────────────────────
+async function syncJogos() {
+    var icon = document.getElementById('sync-dash-icon');
+    var btn  = document.getElementById('btn-sync-dash');
+    if (btn) btn.disabled = true;
+    if (icon) icon.style.cssText = 'animation: spin 1s linear infinite;';
+
+    try {
+        var res  = await fetch('/api/steam-sync', { method: 'POST' });
+        var data = await res.json();
+        if (data.status === 'success') {
+            mostrarToast('✅ ' + data.message);
+            await carregarJogos(); // recarrega a grid
+        } else {
+            mostrarToast('❌ ' + data.message);
+        }
+    } catch(e) {
+        mostrarToast('❌ Erro ao sincronizar.');
+    }
+
+    if (btn)  btn.disabled = false;
+    if (icon) icon.style.cssText = '';
+}
+
+// ── Auto-sync a cada 2h ───────────────────────────────
+setInterval(syncJogos, 2 * 60 * 60 * 1000);
+
 
 // ═══════════════════════════════════════════════════════
 //  DOWNLOAD

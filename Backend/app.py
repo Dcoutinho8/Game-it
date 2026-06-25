@@ -1,45 +1,51 @@
 import os
-import webbrowser
-from flask import Flask, render_template
-from flask_cors import CORS
-from dotenv import load_dotenv
+import sys
 
-CURRENT_FILE = os.path.abspath(__file__)
-BACKEND_DIR  = os.path.dirname(CURRENT_FILE)
-ROOT_DIR     = os.path.dirname(BACKEND_DIR)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 
-load_dotenv(os.path.join(ROOT_DIR, '.env'))
-
-TEMPLATE_DIR = os.path.join(ROOT_DIR, 'Frontend', 'template')
-STATIC_DIR   = os.path.join(ROOT_DIR, 'Frontend', 'static')
-
-app = Flask(
-    __name__,
-    template_folder=TEMPLATE_DIR,
-    static_folder=STATIC_DIR,
-    static_url_path='/static'
-)
-
-CORS(app)
-
+from flask import Flask, render_template, session, redirect
+from database import init_db
 from routes.steam  import steam_bp
 from routes.gemini import gemini_bp
 from routes.notes  import notes_bp
+from routes.auth   import auth_bp
 
+app = Flask(
+    __name__,
+    template_folder=os.path.join(ROOT, 'Frontend', 'template'),
+    static_folder=os.path.join(ROOT,  'Frontend', 'static')
+)
+
+app.secret_key = os.getenv('SECRET_KEY', 'gameit-secret-dev-key')
+
+app.register_blueprint(auth_bp)
 app.register_blueprint(steam_bp)
 app.register_blueprint(gemini_bp)
 app.register_blueprint(notes_bp)
 
+
 @app.route('/')
-def home():
+def index():
+    if not session.get('user_id'):
+        return redirect('/login')
     return render_template('index.html')
 
-def init_app():
-    from database import init_db
-    init_db()
-    print('Iniciando em http://127.0.0.1:5000')
-    webbrowser.open('http://127.0.0.1:5000')
-    app.run(debug=True, port=5000, use_reloader=False)
 
-if __name__ == '__main__':
-    init_app()
+@app.route('/configuracoes')
+def configuracoes():
+    if not session.get('user_id'):
+        return redirect('/login')
+    return render_template('settings.html')
+
+
+@app.route('/login')
+def login_page():
+    if session.get('user_id'):
+        return redirect('/')
+    return render_template('login.html')
+
+
+def init_app():
+    init_db()
