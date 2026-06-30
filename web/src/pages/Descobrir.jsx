@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar.jsx';
 import { api } from '../lib/api';
 import {
-  Button, Card, CardContent, Badge, Avatar, Input, Tabs, Skeleton,
+  Button, Card, CardContent, Badge, Avatar, Tabs, Skeleton, SearchInput,
 } from '../components/ui/index.jsx';
 
 const REASON_VARIANT = { steam: 'steam', mutual: 'mutual', region: 'region' };
@@ -212,13 +212,13 @@ function Buscar() {
 
   return (
     <div>
-      <div className="discover-search" style={{ marginBottom: 6 }}>
-        <i className="fa-solid fa-magnifying-glass discover-search-icon" />
-        <Input
+      <div style={{ marginBottom: 12 }}>
+        <SearchInput
           autoFocus
           placeholder="Buscar por nome ou e-mail..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onClear={() => setQ('')}
         />
       </div>
 

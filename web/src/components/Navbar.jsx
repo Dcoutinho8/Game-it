@@ -31,7 +31,6 @@ export default function Navbar({ active, showTheme = false, onSearch }) {
         <span className="nav-pill">Review</span>
         {pill('Perfil', '/perfil')}
         {pill('Progresso', '/progresso')}
-        {pill('Descobrir', '/descobrir')}
       </div>
 
       <div className="nav-actions">

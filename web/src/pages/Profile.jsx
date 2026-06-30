@@ -5,6 +5,7 @@ import FriendsPanel from '../components/FriendsPanel.jsx';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { escapeHtml, steamCover, steamHeader, DEFAULT_IMG } from '../lib/format';
+import { Dialog, Button, Input, Textarea, Select, Label, SearchInput } from '../components/ui/index.jsx';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -345,14 +346,11 @@ function ReviewCard({ review, onDelete }) {
   );
 }
 
-function Modal({ title, children, onClose }) {
+function Modal({ title, description, children, footer, onClose, size = 'md' }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box panel" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h3>{title}</h3><button className="modal-close" onClick={onClose}><i className="fa-solid fa-xmark" /></button></div>
-        {children}
-      </div>
-    </div>
+    <Dialog title={title} description={description} footer={footer} onClose={onClose} size={size}>
+      {children}
+    </Dialog>
   );
 }
 
@@ -366,55 +364,79 @@ function EditarPerfilModal({ profile, onClose, onSaved }) {
     setSaving(false); onSaved();
   }
   return (
-    <Modal title="Editar Perfil" onClose={onClose}>
-      <label className="g-label">Nickname</label>
-      <input className="g-input" value={nick} maxLength={40} onChange={(e) => setNick(e.target.value)} />
-      <label className="g-label">Bio</label>
-      <textarea className="g-input" rows={3} value={bio} maxLength={200} onChange={(e) => setBio(e.target.value)} />
-      <button className="btn-post" onClick={salvar} disabled={saving} style={{ marginTop: 14 }}>Salvar</button>
+    <Modal
+      title="Editar Perfil"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving}>Salvar</Button>
+        </>
+      }
+    >
+      <Label>Nickname</Label>
+      <Input value={nick} maxLength={40} onChange={(e) => setNick(e.target.value)} />
+      <Label>Bio</Label>
+      <Textarea rows={3} value={bio} maxLength={200} onChange={(e) => setBio(e.target.value)} />
     </Modal>
   );
 }
 
 function NovaReviewModal({ jogos, onClose, onSaved }) {
+  const [gameName, setGameName] = useState('');
   const [appid, setAppid] = useState('');
   const [rating, setRating] = useState(0);
   const [content, setContent] = useState('');
   const [spoilers, setSpoilers] = useState(false);
   const [status, setStatus] = useState('Completed');
   const [saving, setSaving] = useState(false);
+
+  // Ao escolher um jogo da biblioteca, casa o nome com o appid (capa/links).
+  function onGameInput(value) {
+    setGameName(value);
+    const jogo = jogos.find((j) => j.name.toLowerCase() === value.toLowerCase());
+    setAppid(jogo ? String(jogo.appid) : '');
+  }
+
   async function salvar() {
-    if (!appid || rating < 1) { alert('Escolha o jogo e a nota.'); return; }
-    const jogo = jogos.find((j) => String(j.appid) === String(appid));
+    if (!gameName.trim() || rating < 1) { return; }
     setSaving(true);
-    const { data } = await api.post('/api/reviews', { appid, game_name: jogo?.name || '', rating, content, spoilers, status });
+    const { data } = await api.post('/api/reviews', { appid, game_name: gameName.trim(), rating, content, spoilers, status });
     setSaving(false);
     if (data?.status === 'success') onSaved(); else alert(data?.message || 'Erro');
   }
   return (
-    <Modal title="Nova Avaliação" onClose={onClose}>
-      <label className="g-label">Jogo</label>
-      <select className="g-input" value={appid} onChange={(e) => setAppid(e.target.value)}>
-        <option value="">Selecione...</option>
-        {jogos.map((j) => <option key={j.appid} value={j.appid}>{j.name}</option>)}
-      </select>
-      <label className="g-label">Nota</label>
-      <div className="review-stars" style={{ fontSize: 24, marginBottom: 8 }}>
+    <Modal
+      title="Nova Avaliação"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving || !gameName.trim() || rating < 1}>Publicar avaliação</Button>
+        </>
+      }
+    >
+      <Label>Jogo</Label>
+      <Input list="lib-jogos" value={gameName} placeholder="Digite ou escolha um jogo..." onChange={(e) => onGameInput(e.target.value)} />
+      <datalist id="lib-jogos">
+        {jogos.map((j) => <option key={j.appid} value={j.name} />)}
+      </datalist>
+      <Label>Nota</Label>
+      <div className="review-stars" style={{ fontSize: 24, marginBottom: 2 }}>
         {[1, 2, 3, 4, 5].map((s) => (
           <i key={s} className={(s <= rating ? 'fa-solid' : 'fa-regular') + ' fa-star'} style={{ cursor: 'pointer', color: s <= rating ? '#fbbf24' : undefined }} onClick={() => setRating(s)} />
         ))}
       </div>
-      <label className="g-label">Status</label>
-      <select className="g-input" value={status} onChange={(e) => setStatus(e.target.value)}>
+      <Label>Status</Label>
+      <Select value={status} onChange={(e) => setStatus(e.target.value)}>
         <option value="Completed">Concluído</option>
         <option value="Playing">Jogando</option>
         <option value="Dropped">Abandonado</option>
         <option value="Backlog">Backlog</option>
-      </select>
-      <label className="g-label">Comentário</label>
-      <textarea className="g-input" rows={3} value={content} maxLength={1000} onChange={(e) => setContent(e.target.value)} />
-      <label className="g-check"><input type="checkbox" checked={spoilers} onChange={(e) => setSpoilers(e.target.checked)} /> Contém spoilers</label>
-      <button className="btn-post" onClick={salvar} disabled={saving} style={{ marginTop: 14 }}>Publicar avaliação</button>
+      </Select>
+      <Label>Comentário</Label>
+      <Textarea rows={3} value={content} maxLength={1000} onChange={(e) => setContent(e.target.value)} />
+      <label className="g-check" style={{ marginTop: 10 }}><input type="checkbox" checked={spoilers} onChange={(e) => setSpoilers(e.target.checked)} /> Contém spoilers</label>
     </Modal>
   );
 }
@@ -431,15 +453,23 @@ function NovaListaModal({ onClose, onSaved }) {
     if (data?.status === 'success') onSaved(); else alert(data?.message || 'Erro');
   }
   return (
-    <Modal title="Nova Lista" onClose={onClose}>
-      <label className="g-label">Título</label>
-      <input className="g-input" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
-      <label className="g-label">Tipo</label>
-      <select className="g-input" value={kind} onChange={(e) => setKind(e.target.value)}>
+    <Modal
+      title="Nova Lista"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving || !title.trim()}>Criar lista</Button>
+        </>
+      }
+    >
+      <Label>Título</Label>
+      <Input value={title} maxLength={120} placeholder="Ex.: Para zerar em 2025" onChange={(e) => setTitle(e.target.value)} />
+      <Label>Tipo</Label>
+      <Select value={kind} onChange={(e) => setKind(e.target.value)}>
         <option value="custom">Personalizada</option>
         <option value="all">Todos os jogos (auto)</option>
-      </select>
-      <button className="btn-post" onClick={salvar} disabled={saving} style={{ marginTop: 14 }}>Criar lista</button>
+      </Select>
     </Modal>
   );
 }
@@ -459,8 +489,18 @@ function FavoritosModal({ jogos, atuais, onClose, onSaved }) {
   }
   const filtrados = jogos.filter((j) => j.name.toLowerCase().includes(busca.toLowerCase()));
   return (
-    <Modal title={`Favoritos (${sel.length}/3)`} onClose={onClose}>
-      <input className="g-input" placeholder="Buscar jogo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+    <Modal
+      title={`Favoritos (${sel.length}/3)`}
+      description="Escolha até 3 jogos para destacar no seu perfil."
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving}>Salvar favoritos</Button>
+        </>
+      }
+    >
+      <SearchInput placeholder="Buscar jogo..." value={busca} onChange={(e) => setBusca(e.target.value)} onClear={() => setBusca('')} />
       <div className="fav-select-grid">
         {filtrados.slice(0, 60).map((j) => (
           <div key={j.appid} className={'fav-select-item' + (sel.includes(String(j.appid)) ? ' selected' : '')} onClick={() => toggle(j.appid)} title={j.name}>
@@ -469,7 +509,6 @@ function FavoritosModal({ jogos, atuais, onClose, onSaved }) {
           </div>
         ))}
       </div>
-      <button className="btn-post" onClick={salvar} disabled={saving} style={{ marginTop: 14 }}>Salvar favoritos</button>
     </Modal>
   );
 }

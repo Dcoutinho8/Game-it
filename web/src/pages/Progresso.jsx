@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar.jsx';
 import GuideModal from '../components/GuideModal.jsx';
 import { api } from '../lib/api';
+import { SearchInput } from '../components/ui/index.jsx';
 import { renderMarkdown, escapeHtml, steamCover, steamHeader, DEFAULT_IMG } from '../lib/format';
 
 export default function Progresso() {
@@ -112,11 +113,8 @@ export default function Progresso() {
             <div className="ppanel" style={{ display: 'flex' }}>
               <section className="panel pcard">
                 <div className="subheader" style={{ marginBottom: 16 }}>
-                  <div className="search-wrap">
-                    <i className="fa-solid fa-magnifying-glass search-icon" />
-                    <input ref={searchRef} type="text" value={busca} onChange={(e) => setBusca(e.target.value)}
-                           placeholder="Buscar jogo na biblioteca..." className="g-input" />
-                  </div>
+                  <SearchInput ref={searchRef} value={busca} onChange={(e) => setBusca(e.target.value)}
+                               onClear={() => setBusca('')} placeholder="Buscar jogo na biblioteca..." />
                   <p className="game-counter"><span className="counter-num">{total}</span> jogos</p>
                   <div className="sync-area">
                     <span className="last-sync-label">{syncLabel()}</span>

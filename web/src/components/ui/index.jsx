@@ -102,3 +102,58 @@ export function Skeleton({ className, style }) {
 export function Separator({ className }) {
   return <div className={cx('ui-separator', className)} />;
 }
+
+/* ── Label / Textarea / Select ──────────────────────── */
+export function Label({ className, ...props }) {
+  return <label className={cx('ui-label', className)} {...props} />;
+}
+export const Textarea = forwardRef(function Textarea({ className, ...props }, ref) {
+  return <textarea ref={ref} className={cx('ui-input ui-textarea', className)} {...props} />;
+});
+export const Select = forwardRef(function Select({ className, children, ...props }, ref) {
+  return (
+    <select ref={ref} className={cx('ui-input ui-select', className)} {...props}>
+      {children}
+    </select>
+  );
+});
+
+/* ── SearchInput (padrão único de busca) ────────────── */
+export const SearchInput = forwardRef(function SearchInput(
+  { className, value, onChange, onClear, ...props },
+  ref
+) {
+  return (
+    <div className={cx('ui-search', className)}>
+      <i className="fa-solid fa-magnifying-glass ui-search__icon" />
+      <input ref={ref} className="ui-input ui-search__input" value={value} onChange={onChange} {...props} />
+      {value && (
+        <button type="button" className="ui-search__clear" onClick={onClear} aria-label="Limpar busca">
+          <i className="fa-solid fa-xmark" />
+        </button>
+      )}
+    </div>
+  );
+});
+
+/* ── Dialog (modal padrão, acessível) ───────────────── */
+export function Dialog({ open = true, onClose, title, description, children, footer, size = 'md', className }) {
+  if (!open) return null;
+  return (
+    <div className="ui-dialog__overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}>
+      <div className={cx('ui-dialog', `ui-dialog--${size}`, className)} role="dialog" aria-modal="true">
+        <div className="ui-dialog__header">
+          <div className="ui-dialog__heading">
+            {title && <h3 className="ui-dialog__title">{title}</h3>}
+            {description && <p className="ui-dialog__desc">{description}</p>}
+          </div>
+          <button className="ui-dialog__close" onClick={onClose} aria-label="Fechar">
+            <i className="fa-solid fa-xmark" />
+          </button>
+        </div>
+        <div className="ui-dialog__body cscroll">{children}</div>
+        {footer && <div className="ui-dialog__footer">{footer}</div>}
+      </div>
+    </div>
+  );
+}
