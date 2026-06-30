@@ -1066,3 +1066,248 @@ def set_game_status(appid):
     cur.close()
     conn.close()
     return jsonify({'status': 'success', 'platinum': platinum})
+
+
+# ═══════════════════════════════════════════════════════
+#  AMIGOS (Game It) + STATUS ONLINE POR PLATAFORMA
+# ═══════════════════════════════════════════════════════
+PERSONA_STATES = {
+    0: 'Offline', 1: 'Online', 2: 'Ocupado', 3: 'Ausente',
+    4: 'Soneca', 5: 'A fim de troca', 6: 'A fim de jogar'
+}
+
+
+def _steam_states(steam_ids):
+    """Estado (online/jogo) de vários steam_ids numa só chamada.
+    Retorna {steam_id: {'online', 'state', 'game', 'avatar'}}.
+    """
+    ids = [str(s) for s in steam_ids if s]
+    if not ids:
+        return {}
+    key = os.getenv('STEAM_API_KEY')
+    if not key:
+        return {}
+    out = {}
+    # GetPlayerSummaries aceita até 100 ids por chamada
+    for i in range(0, len(ids), 100):
+        chunk = ids[i:i + 100]
+        try:
+            url = (f'{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/'
+                   f'?key={key}&steamids={",".join(chunk)}')
+            players = requests.get(url, timeout=8).json().get('response', {}).get('players', [])
+        except Exception:
+            players = []
+        for p in players:
+            sid = str(p.get('steamid'))
+            state = p.get('personastate', 0) or 0
+            game = p.get('gameextrainfo')
+            out[sid] = {
+                'online': state != 0 or bool(game),
+                'state':  PERSONA_STATES.get(state, 'Offline'),
+                'game':   game,
+                'avatar': p.get('avatarfull') or p.get('avatar'),
+            }
+    return out
+
+
+def _platforms_for(user_row, steam_state):
+    """Lista as plataformas conectadas e o status online em cada uma.
+    Futuro: epic, riot, playstation, etc.
+    """
+    plats = []
+    if user_row.get('steam_id'):
+        if steam_state:
+            label = f"Jogando {steam_state['game']}" if steam_state.get('game') \
+                else steam_state.get('state', 'Offline')
+            plats.append({
+                'name':   'Steam', 'icon': 'steam',
+                'online': steam_state.get('online', False),
+                'status': label,
+                'game':   steam_state.get('game'),
+            })
+        else:
+            plats.append({'name': 'Steam', 'icon': 'steam', 'online': False,
+                          'status': 'Offline', 'game': None})
+    return plats
+
+
+def _nick(user_row):
+    return user_row.get('display_name') or user_row.get('name') or 'Jogador'
+
+
+@social_bp.route('/api/friends')
+@login_required
+def list_friends():
+    """Amigos do Game It (quem eu sigo), com status online por plataforma."""
+    user_id = uid()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT u.id, u.name, u.display_name, u.avatar_url, u.bio, u.steam_id "
+        "FROM follows f JOIN users u ON u.id = f.following_id "
+        "WHERE f.follower_id = %s ORDER BY u.display_name, u.name",
+        (user_id,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    states = _steam_states([r['steam_id'] for r in rows if r.get('steam_id')])
+
+    friends = []
+    for r in rows:
+        st = states.get(str(r['steam_id'])) if r.get('steam_id') else None
+        plats = _platforms_for(r, st)
+        online = any(p['online'] for p in plats)
+        friends.append({
+            'id':        r['id'],
+            'nickname':  _nick(r),
+            'avatar':    r['avatar_url'] or (st and st.get('avatar')) or '/static/img/Game It Logo.svg',
+            'platforms': plats,
+            'online':    online,
+        })
+    friends.sort(key=lambda f: (not f['online'], f['nickname'].lower()))
+    return jsonify({'status': 'success', 'friends': friends})
+
+
+@social_bp.route('/api/users/search')
+@login_required
+def search_users():
+    """Busca usuários do Game It para adicionar como amigos."""
+    user_id = uid()
+    q = clamp_text(request.args.get('q'), 60)
+    if not q or len(q) < 2:
+        return jsonify({'status': 'success', 'users': []})
+
+    conn = get_connection()
+    cur = conn.cursor()
+    like = f'%{q}%'
+    cur.execute(
+        "SELECT u.id, u.name, u.display_name, u.avatar_url, "
+        "  EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=%s AND f.following_id=u.id) AS following "
+        "FROM users u "
+        "WHERE u.id <> %s AND (u.display_name ILIKE %s OR u.name ILIKE %s OR u.email ILIKE %s) "
+        "ORDER BY u.display_name, u.name LIMIT 20",
+        (user_id, user_id, like, like, like)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    users = [{
+        'id':        r['id'],
+        'nickname':  _nick(r),
+        'avatar':    r['avatar_url'] or '/static/img/Game It Logo.svg',
+        'following': r['following'],
+    } for r in rows]
+    return jsonify({'status': 'success', 'users': users})
+
+
+@social_bp.route('/api/follow/<int:target_id>', methods=['POST'])
+@login_required
+def toggle_follow(target_id):
+    """Adiciona/remove um amigo (follow/unfollow)."""
+    user_id = uid()
+    if target_id == user_id:
+        return jsonify({'status': 'error', 'message': 'Você não pode seguir a si mesmo.'}), 400
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM users WHERE id=%s", (target_id,))
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        return jsonify({'status': 'error', 'message': 'Usuário não encontrado.'}), 404
+
+    cur.execute("SELECT 1 FROM follows WHERE follower_id=%s AND following_id=%s",
+                (user_id, target_id))
+    if cur.fetchone():
+        cur.execute("DELETE FROM follows WHERE follower_id=%s AND following_id=%s",
+                    (user_id, target_id))
+        following = False
+    else:
+        cur.execute("INSERT INTO follows (follower_id, following_id) VALUES (%s,%s) "
+                    "ON CONFLICT DO NOTHING", (user_id, target_id))
+        following = True
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({'status': 'success', 'following': following})
+
+
+@social_bp.route('/api/users/<int:target_id>')
+@login_required
+def public_profile(target_id):
+    """Perfil público de outro usuário do Game It."""
+    user_id = uid()
+    u = get_user_row(target_id)
+    if not u:
+        return jsonify({'status': 'error', 'message': 'Usuário não encontrado.'}), 404
+
+    st = None
+    if u.get('steam_id'):
+        st = _steam_states([u['steam_id']]).get(str(u['steam_id']))
+    plats = _platforms_for(u, st)
+
+    favs = []
+    fav_ids = u.get('favorite_games') or []
+    if fav_ids:
+        conn = get_connection()
+        cur = conn.cursor()
+        for appid in fav_ids:
+            cur.execute("SELECT name FROM user_games WHERE user_id=%s AND appid=%s",
+                        (target_id, str(appid)))
+            row = cur.fetchone()
+            favs.append({'appid': appid, 'name': row['name'] if row else 'Jogo',
+                         'cover': COVER_URL.format(appid=appid)})
+        cur.close()
+        conn.close()
+
+    joined = 'Recentemente'
+    if u.get('created_at'):
+        d = u['created_at']
+        joined = f'Entrou em {MESES[d.month - 1]} de {d.year}'
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) AS c FROM follows WHERE following_id=%s", (target_id,))
+    followers = cur.fetchone()['c']
+    cur.execute("SELECT COUNT(*) AS c FROM follows WHERE follower_id=%s", (target_id,))
+    following_n = cur.fetchone()['c']
+    cur.execute("SELECT 1 FROM follows WHERE follower_id=%s AND following_id=%s",
+                (user_id, target_id))
+    is_following = bool(cur.fetchone())
+    cur.execute("SELECT COUNT(*) AS c FROM user_games WHERE user_id=%s", (target_id,))
+    total_games = cur.fetchone()['c']
+    cur.execute(
+        "SELECT id, appid, game_name, rating, content, created_at "
+        "FROM reviews WHERE user_id=%s ORDER BY created_at DESC LIMIT 10", (target_id,)
+    )
+    reviews = [{
+        'id': r['id'], 'appid': r['appid'], 'game_name': r['game_name'],
+        'rating': r['rating'], 'content': r['content'], 'time': _humaniza(r['created_at']),
+        'cover': HEADER_URL.format(appid=r['appid']) if r['appid'] else None
+    } for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        'status': 'success',
+        'profile': {
+            'id':           target_id,
+            'nickname':     _nick(u),
+            'avatar':       u.get('avatar_url') or (st and st.get('avatar')) or '/static/img/Game It Logo.svg',
+            'cover':        u.get('cover_url'),
+            'bio':          u.get('bio') or '',
+            'joined':       joined,
+            'favorites':    favs,
+            'followers':    followers,
+            'following':    following_n,
+            'is_following': is_following,
+            'is_me':        target_id == user_id,
+            'online':       any(p['online'] for p in plats),
+            'platforms':    plats,
+            'total_games':  total_games,
+            'reviews':      reviews,
+        }
+    })
