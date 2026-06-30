@@ -13,6 +13,7 @@ export default function Progresso() {
   const [filtro, setFiltro] = useState('todos');
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
+  const [erro, setErro] = useState('');
   const [trending, setTrending] = useState([]);
   const [profile, setProfile] = useState(null);
   const [guia, setGuia] = useState(null);
@@ -24,6 +25,9 @@ export default function Progresso() {
     if (data && data.status === 'success') {
       setJogos(data.games || []);
       setLastSync(data.last_synced || null);
+      setErro('');
+    } else {
+      setErro((data && data.message) || 'Não foi possível carregar a biblioteca da Steam.');
     }
     setLoading(false);
   }, []);
@@ -59,8 +63,13 @@ export default function Progresso() {
 
   async function sync() {
     setSyncing(true);
-    await api.post('/api/steam-sync');
-    await carregarDados();
+    const { data } = await api.post('/api/steam-sync');
+    if (data && data.status === 'error') {
+      setErro(data.message || 'Falha ao sincronizar com a Steam.');
+    } else {
+      setErro('');
+      await carregarDados();
+    }
     setSyncing(false);
   }
 
@@ -135,6 +144,11 @@ export default function Progresso() {
                     <div className="loading-state">
                       <div className="spinner" />
                       <p className="loading-text">Carregando biblioteca da Steam...</p>
+                    </div>
+                  ) : erro ? (
+                    <div className="empty-panel" style={{ gridColumn: '1/-1' }}>
+                      <i className="fa-solid fa-triangle-exclamation" style={{ color: '#f87171' }} />
+                      <p>{erro}</p>
                     </div>
                   ) : (
                     <div className="jogos-mini-grid">

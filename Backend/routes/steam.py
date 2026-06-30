@@ -1,5 +1,6 @@
 import os
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, session, request
 from psycopg.types.json import Json
@@ -14,12 +15,33 @@ STEAM_API = 'https://api.steampowered.com'
 SYNC_TTL = timedelta(hours=2)
 
 
+def _user_steam_creds():
+    """Lê (steam_id, steam_api_key) do usuário logado no banco.
+    Retorna (None, None) se não houver."""
+    user_id = session.get('user_id')
+    if user_id:
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("SELECT steam_id, steam_api_key FROM users WHERE id = %s", (user_id,))
+            row  = cur.fetchone()
+            cur.close(); conn.close()
+            if row:
+                return row.get('steam_id'), row.get('steam_api_key')
+        except Exception:
+            pass
+    return None, None
+
+
 def get_key():
-    return os.getenv('STEAM_API_KEY')
+    # Prioriza a chave salva pelo usuário nas Configurações; cai no .env como fallback.
+    _, key = _user_steam_creds()
+    return key or os.getenv('STEAM_API_KEY')
 
 
 def get_steamid():
-    return os.getenv('STEAM_ID')
+    sid, _ = _user_steam_creds()
+    return sid or os.getenv('STEAM_ID')
 
 
 def get_user_id():
@@ -28,13 +50,44 @@ def get_user_id():
 
 
 # ── Busca a biblioteca completa direto na Steam ─────────
-def fetch_games_from_steam():
-    """Retorna (games, erro). games = lista de dicts; erro = str ou None."""
+def _fetch_achievements(key, steamid, appid):
+    """Conquistas de UM jogo. Retorna (status, pct, achievements)."""
+    url_ach = (
+        f'{STEAM_API}/ISteamUserStats/GetPlayerAchievements/v1/'
+        f'?key={key}&steamid={steamid}&appid={appid}&l=portuguese'
+    )
+    try:
+        stats = requests.get(url_ach, timeout=8).json().get('playerstats', {})
+        achs  = stats.get('achievements', [])
+        if not achs:
+            return 'Sem Conquistas', 0.0, []
+        total   = len(achs)
+        desbloq = sum(1 for a in achs if a.get('achieved') == 1)
+        pct     = (desbloq / total * 100) if total > 0 else 0.0
+        if pct >= 100:
+            status = '100%'
+        elif pct > 0:
+            status = 'Em Progresso'
+        else:
+            status = 'Sem Conquistas'
+        return status, pct, achs
+    except Exception:
+        return 'Sem Conquistas', 0.0, []
+
+
+def fetch_games_from_steam(with_achievements=True):
+    """Retorna (games, erro). games = lista de dicts; erro = str ou None.
+
+    with_achievements=False faz uma carga rápida (só a lista de jogos, sem
+    1 requisição por jogo) — usada na primeira abertura da página para não
+    travar carregando centenas de jogos. As conquistas vêm depois, em
+    paralelo, pelo botão "Sincronizar".
+    """
     key     = get_key()
     steamid = get_steamid()
 
     if not key or not steamid:
-        return [], 'STEAM_API_KEY ou STEAM_ID não configurado no .env'
+        return [], 'Steam API Key ou Steam ID não configurado nas Configurações.'
 
     url_games = (
         f'{STEAM_API}/IPlayerService/GetOwnedGames/v1/'
@@ -42,54 +95,46 @@ def fetch_games_from_steam():
         f'&include_appinfo=true&include_played_free_games=true'
     )
     try:
-        r     = requests.get(url_games, timeout=10)
-        games = r.json().get('response', {}).get('games', [])
+        payload = requests.get(url_games, timeout=10).json().get('response', {})
     except Exception as e:
         return [], str(e)
 
-    resultado = []
+    games = payload.get('games', [])
+    if not games:
+        # Resposta vazia normalmente = chave inválida ou perfil/biblioteca privado
+        return [], ('Nenhum jogo retornado. Verifique se a Steam API Key e o '
+                    'Steam ID (SteamID64, 17 dígitos) estão corretos e se o '
+                    'perfil e a biblioteca estão públicos.')
+
+    base = {}
     for g in games:
         appid = g.get('appid')
-        name  = g.get('name', 'Jogo Desconhecido')
+        base[appid] = {
+            'appid': appid,
+            'name':  g.get('name', 'Jogo Desconhecido'),
+            'status': 'Sem Conquistas',
+            'pct': 0.0,
+            'achievements': [],
+            'playtime_forever': g.get('playtime_forever', 0),
+            'has_stats': bool(g.get('has_community_visible_stats')),
+        }
 
-        if not g.get('has_community_visible_stats'):
-            resultado.append({
-                'appid': appid, 'name': name, 'status': 'Sem Conquistas',
-                'pct': 0.0, 'achievements': [],
-                'playtime_forever': g.get('playtime_forever', 0)
-            })
-            continue
+    if with_achievements:
+        alvos = [a for a, info in base.items() if info['has_stats']]
+        # Busca conquistas em paralelo (senão levaria minutos)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futuros = {pool.submit(_fetch_achievements, key, steamid, a): a
+                       for a in alvos}
+            for fut in as_completed(futuros):
+                a = futuros[fut]
+                status, pct, achs = fut.result()
+                base[a]['status'] = status
+                base[a]['pct'] = round(pct, 2)
+                base[a]['achievements'] = achs
 
-        url_ach = (
-            f'{STEAM_API}/ISteamUserStats/GetPlayerAchievements/v1/'
-            f'?key={key}&steamid={steamid}&appid={appid}&l=portuguese'
-        )
-        try:
-            ra    = requests.get(url_ach, timeout=8)
-            stats = ra.json().get('playerstats', {})
-            achs  = stats.get('achievements', [])
-
-            if not achs:
-                status, pct = 'Sem Conquistas', 0.0
-            else:
-                total   = len(achs)
-                desbloq = sum(1 for a in achs if a.get('achieved') == 1)
-                pct     = (desbloq / total * 100) if total > 0 else 0.0
-                if pct >= 100:
-                    status = '100%'
-                elif pct > 0:
-                    status = 'Em Progresso'
-                else:
-                    status = 'Sem Conquistas'
-        except Exception:
-            achs, status, pct = [], 'Sem Conquistas', 0.0
-
-        resultado.append({
-            'appid': appid, 'name': name, 'status': status,
-            'pct': round(pct, 2), 'achievements': achs,
-            'playtime_forever': g.get('playtime_forever', 0)
-        })
-
+    resultado = list(base.values())
+    for info in resultado:
+        info.pop('has_stats', None)
     resultado.sort(key=lambda x: x['pct'], reverse=True)
     return resultado, None
 
@@ -173,18 +218,33 @@ def cache_is_stale(last_synced):
 @steam_bp.route('/api/steam-data')
 @login_required
 def steam_data():
+    import time
+    t0 = time.time()
     user_id = get_user_id()
-    games, last_synced = load_games_from_db(user_id)
+    print(f'[steam-data] user_id={user_id} — lendo do banco...', flush=True)
+    try:
+        games, last_synced = load_games_from_db(user_id)
+    except Exception as e:
+        print(f'[steam-data] ERRO ao ler do banco: {e!r}', flush=True)
+        return jsonify({'status': 'error',
+                        'message': f'Erro ao acessar o banco: {e}'}), 500
+    print(f'[steam-data] {len(games)} jogos no cache ({time.time()-t0:.2f}s)', flush=True)
 
-    # Sincroniza automaticamente se vazio ou desatualizado (>2h)
-    if not games or cache_is_stale(last_synced):
-        fresh, erro = fetch_games_from_steam()
-        if erro and not games:
+    # Primeira carga (cache vazio): sincroniza RÁPIDO, sem buscar conquistas
+    # jogo a jogo (isso levaria minutos e travaria a página). As conquistas
+    # vêm depois, em paralelo, pelo botão "Sincronizar".
+    if not games:
+        print('[steam-data] cache vazio — buscando lista na Steam...', flush=True)
+        fresh, erro = fetch_games_from_steam(with_achievements=False)
+        if erro:
+            print(f'[steam-data] Steam retornou erro: {erro}', flush=True)
             return jsonify({'status': 'error', 'message': erro})
+        print(f'[steam-data] Steam retornou {len(fresh)} jogos ({time.time()-t0:.2f}s)', flush=True)
         if fresh:
             save_games_to_db(user_id, fresh)
             games, last_synced = load_games_from_db(user_id)
 
+    print(f'[steam-data] respondendo {len(games)} jogos ({time.time()-t0:.2f}s)', flush=True)
     return jsonify({
         'status':      'success',
         'games':       games,

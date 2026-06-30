@@ -82,6 +82,20 @@ def uid():
 
 
 def get_steam_creds():
+    """Retorna (steam_api_key, steam_id) do usuário logado (banco),
+    com fallback para as variáveis de ambiente."""
+    user_id = session.get('user_id')
+    if user_id:
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("SELECT steam_id, steam_api_key FROM users WHERE id = %s", (user_id,))
+            row  = cur.fetchone()
+            cur.close(); conn.close()
+            if row and row.get('steam_api_key') and row.get('steam_id'):
+                return row['steam_api_key'], row['steam_id']
+        except Exception:
+            pass
     return os.getenv('STEAM_API_KEY'), os.getenv('STEAM_ID')
 
 
@@ -1084,7 +1098,7 @@ def _steam_states(steam_ids):
     ids = [str(s) for s in steam_ids if s]
     if not ids:
         return {}
-    key = os.getenv('STEAM_API_KEY')
+    key, _ = get_steam_creds()
     if not key:
         return {}
     out = {}

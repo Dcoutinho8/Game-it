@@ -6,6 +6,10 @@
 
 const BASE = ''; // mesmo host (proxy em dev, mesma origem em prod)
 
+// Timeout padrão por requisição (ms). Evita "carregar pra sempre" se o
+// backend travar (ex.: banco inacessível, Steam lenta).
+const TIMEOUT_MS = 30000;
+
 async function request(path, { method = 'GET', body, isForm = false } = {}) {
   const opts = {
     method,
@@ -22,7 +26,29 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
     }
   }
 
-  const res = await fetch(BASE + path, opts);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  opts.signal = ctrl.signal;
+
+  const t0 = performance.now();
+  console.log(`[api] → ${method} ${path}`);
+
+  let res;
+  try {
+    res = await fetch(BASE + path, opts);
+  } catch (err) {
+    clearTimeout(timer);
+    const aborted = err && err.name === 'AbortError';
+    const msg = aborted
+      ? `Tempo esgotado (${TIMEOUT_MS / 1000}s). O servidor não respondeu — verifique se o backend está rodando e se o banco de dados está acessível.`
+      : `Falha de rede: ${err && err.message ? err.message : err}`;
+    console.error(`[api] ✗ ${method} ${path}`, msg);
+    return { ok: false, status: 0, data: { status: 'error', message: msg } };
+  }
+  clearTimeout(timer);
+
+  const dt = Math.round(performance.now() - t0);
+  console.log(`[api] ← ${method} ${path} ${res.status} (${dt}ms)`);
 
   // Sessão expirada → redireciona ao login (exceto se já for a checagem /me)
   if (res.status === 401 && !path.includes('/auth/me')) {
