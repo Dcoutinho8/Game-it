@@ -210,50 +210,42 @@ html.light .ui-input[type="date"] { color-scheme: light; }
   white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
 }
 
-/* Recentes (perfil) — carrossel */
-.recent-carousel { position: relative; display: flex; align-items: center; }
-.recent-track {
-  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-  padding: 4px 2px 8px; scrollbar-width: thin;
+/* Recentes (perfil) — carrossel horizontal */
+.recent-carousel {
+  display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 12px;
+  scroll-snap-type: x mandatory;
 }
-.recent-track::-webkit-scrollbar { height: 6px; }
-.rc-item {
-  flex: 0 0 auto; width: 120px; scroll-snap-align: start;
+.recent-card {
+  flex: 0 0 116px; width: 116px; scroll-snap-align: start;
   display: flex; flex-direction: column; gap: 6px; text-decoration: none;
 }
-.rc-cover {
-  position: relative; width: 120px; aspect-ratio: 2/3; border-radius: 10px;
-  overflow: hidden; border: 1px solid var(--border, rgba(255,255,255,.08));
+.recent-cover {
+  position: relative; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border, rgba(255,255,255,.08));
   transition: transform .15s, box-shadow .2s;
 }
-.rc-item:hover .rc-cover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,.35); }
-.rc-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rc-platform {
-  position: absolute; bottom: 6px; right: 6px; width: 24px; height: 24px;
-  background: rgba(8,11,20,.82); color: #fff; border-radius: 50%;
+.recent-card:hover .recent-cover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.35); }
+.recent-cover img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+.recent-plat {
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(8,11,20,.78); color: #fff;
   display: flex; align-items: center; justify-content: center; font-size: 12px;
-  backdrop-filter: blur(2px);
 }
-.rc-name {
-  font-size: 12px; font-weight: 600; color: var(--text-heading, #e2e8f0);
-  line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.recent-name {
+  font-size: 12.5px; font-weight: 600; color: var(--text-heading, #e2e8f0);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.rc-hours {
+.recent-hours {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11.5px; color: #a5b4fc; font-weight: 600;
+  font-size: 11.5px; color: var(--text-muted, #94a3b8);
 }
-.rc-nav {
-  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
-  background: var(--bg-input, rgba(255,255,255,.06));
-  border: 1px solid var(--border, rgba(255,255,255,.1));
-  color: var(--text-body, #cbd5e1); cursor: pointer; z-index: 2;
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
-  transition: all .15s;
-}
-.rc-nav:hover { background: rgba(99,102,241,.2); border-color: #6366F1; color: #fff; }
-.rc-prev { margin-right: 4px; }
-.rc-next { margin-left: 4px; }
+.recent-hours i { color: #6366F1; }
 
+/* Scroll horizontal com barra fina */
+.cscroll-x::-webkit-scrollbar { height: 6px; }
+.cscroll-x::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 4px; }
+.cscroll-x::-webkit-scrollbar-track { background: transparent; }
 
 /* Barras de avaliação */
 .rating-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
