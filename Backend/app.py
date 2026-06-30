@@ -6,7 +6,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'backend'))
 
-from flask import Flask, render_template, session, redirect
+from flask import Flask, jsonify, send_from_directory
 from database import init_db
 from security import load_secret_key
 from routes.steam  import steam_bp
@@ -15,11 +15,25 @@ from routes.notes  import notes_bp
 from routes.auth   import auth_bp
 from routes.social import social_bp
 
+# Pasta com o build da SPA React (gerado por `npm run build` em web/)
+WEB_DIST = os.path.join(ROOT, 'web', 'dist')
+
 app = Flask(
     __name__,
-    template_folder=os.path.join(ROOT, 'Frontend', 'template'),
     static_folder=os.path.join(ROOT,  'Frontend', 'static')
 )
+
+# ── CORS (apenas em desenvolvimento, para a SPA na :5173) ──
+# Em produção a SPA é servida pelo próprio Flask (web/dist), mesma origem.
+try:
+    from flask_cors import CORS
+    _dev_origins = os.getenv(
+        'CORS_ORIGINS',
+        'http://localhost:5173,http://127.0.0.1:5173'
+    ).split(',')
+    CORS(app, supports_credentials=True, origins=[o.strip() for o in _dev_origins if o.strip()])
+except ImportError:
+    pass
 
 # ── Segurança ───────────────────────────────────────────
 app.secret_key = load_secret_key(ROOT)
@@ -48,52 +62,26 @@ app.register_blueprint(notes_bp)
 app.register_blueprint(social_bp)
 
 
-# ── Rotas de Página ──────────────────────────────────
-def login_required(f):
-    from functools import wraps
-    @wraps(f)
-    def check_session(*args, **kwargs):
-        if not session.get('user_id'):
-            return redirect('/login')
-        return f(*args, **kwargs)
-    return check_session
-
-
-@app.route('/login')
-def login_page():
-    if session.get('user_id'):
-        return redirect('/')
-    return render_template('login.html')
-
-
+# ── Servir a SPA React (web/dist) ────────────────────────
+# Quando o build existe, o Flask entrega a SPA e o roteamento client-side.
+# Sem o build, responde um JSON simples (modo API pura / use `npm run dev`).
 @app.route('/')
-@login_required
-def index():
-    return render_template('profile.html')
+@app.route('/<path:path>')
+def serve_spa(path=''):
+    # Assets buildados pelo Vite (web/dist/assets, vite.svg, etc.)
+    full = os.path.join(WEB_DIST, path)
+    if path and os.path.isfile(full):
+        return send_from_directory(WEB_DIST, path)
 
+    index = os.path.join(WEB_DIST, 'index.html')
+    if os.path.isfile(index):
+        return send_from_directory(WEB_DIST, 'index.html')
 
-@app.route('/perfil')
-@login_required
-def perfil():
-    return render_template('profile.html')
-
-
-@app.route('/progresso')
-@login_required
-def progresso():
-    return render_template('index.html')
-
-
-@app.route('/jogo/<appid>')
-@login_required
-def jogo(appid):
-    return render_template('game.html', appid=appid)
-
-@app.route('/game/<appid>')
-def game_page(appid):
-    if not session.get('user_id'):
-        return redirect('/login')
-    return render_template('game.html', appid=appid)
+    return jsonify({
+        'status': 'ok',
+        'service': 'Game It API',
+        'message': 'SPA não buildada. Rode `npm run dev` em web/ ou `npm run build`.'
+    })
 
 
 def init_app():

@@ -4,7 +4,7 @@ import qrcode
 import io
 import base64
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import Blueprint, request, jsonify, session, render_template, redirect
+from flask import Blueprint, request, jsonify, session
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -20,21 +20,6 @@ def usuario_atual():
     user = cur.fetchone()
     cur.close(); conn.close()
     return user
-
-
-# ── Páginas ──────────────────────────────────────────
-@auth_bp.route('/login')
-def login_page():
-    if session.get('user_id'):
-        return redirect('/')
-    return render_template('login.html')
-
-
-@auth_bp.route('/configuracoes')
-def settings_page():
-    if not session.get('user_id'):
-        return redirect('/login')
-    return render_template('settings.html')
 
 
 # ── Register ─────────────────────────────────────────
