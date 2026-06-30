@@ -5,6 +5,7 @@ import Login from './pages/Login.jsx';
 import Profile from './pages/Profile.jsx';
 import PublicProfile from './pages/PublicProfile.jsx';
 import Progresso from './pages/Progresso.jsx';
+import Descobrir from './pages/Descobrir.jsx';
 import Game from './pages/Game.jsx';
 import Settings from './pages/Settings.jsx';
 
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/perfil" element={<Profile />} />
         <Route path="/usuario/:id" element={<PublicProfile />} />
         <Route path="/progresso" element={<Progresso />} />
+        <Route path="/descobrir" element={<Descobrir />} />
         <Route path="/jogo/:appid" element={<Game />} />
         <Route path="/configuracoes" element={<Settings />} />
       </Route>

@@ -1325,3 +1325,151 @@ def public_profile(target_id):
             'reviews':      reviews,
         }
     })
+
+
+# ═══════════════════════════════════════════════════════
+#  RECOMENDAÇÕES DE AMIGOS
+#  Combina 3 sinais: amigos na Steam, amigos em comum e região.
+# ═══════════════════════════════════════════════════════
+# Pesos de cada sinal no score final (ajustáveis).
+W_STEAM_FRIEND = 50      # já são amigos na Steam → sinal mais forte
+W_MUTUAL       = 14      # por amigo em comum (com teto)
+W_MUTUAL_CAP   = 56      # teto da contribuição de amigos em comum
+W_REGION       = 12      # mesma região (país)
+
+# Nomes amigáveis de alguns países comuns (fallback = o próprio código).
+COUNTRY_NAMES = {
+    'BR': 'Brasil', 'US': 'Estados Unidos', 'PT': 'Portugal', 'AR': 'Argentina',
+    'GB': 'Reino Unido', 'CA': 'Canadá', 'DE': 'Alemanha', 'FR': 'França',
+    'ES': 'Espanha', 'IT': 'Itália', 'MX': 'México', 'JP': 'Japão',
+    'AU': 'Austrália', 'CL': 'Chile', 'CO': 'Colômbia', 'NL': 'Holanda',
+}
+
+
+def _steam_friend_ids(steamid, key):
+    """SteamIDs dos amigos na Steam do usuário (set de strings).
+    Requer a lista de amigos pública. Retorna set vazio em caso de erro.
+    """
+    if not steamid or not key:
+        return set()
+    try:
+        url = (f'{STEAM_API}/ISteamUser/GetFriendList/v1/'
+               f'?key={key}&steamid={steamid}&relationship=friend')
+        data = requests.get(url, timeout=8).json()
+        friends = data.get('friendslist', {}).get('friends', [])
+        return {str(f.get('steamid')) for f in friends if f.get('steamid')}
+    except Exception:
+        return set()
+
+
+def _steam_countries(steam_ids, key):
+    """Mapeia {steam_id: country_code} via GetPlayerSummaries (loccountrycode)."""
+    ids = [str(s) for s in steam_ids if s]
+    if not ids or not key:
+        return {}
+    out = {}
+    for i in range(0, len(ids), 100):
+        chunk = ids[i:i + 100]
+        try:
+            url = (f'{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/'
+                   f'?key={key}&steamids={",".join(chunk)}')
+            players = requests.get(url, timeout=8).json().get('response', {}).get('players', [])
+        except Exception:
+            players = []
+        for p in players:
+            cc = p.get('loccountrycode')
+            if cc:
+                out[str(p.get('steamid'))] = cc.upper()
+    return out
+
+
+@social_bp.route('/api/friends/recommendations')
+@login_required
+def friend_recommendations():
+    """Sugere amigos combinando 3 fatores:
+      1. Já são amigos na Steam (GetFriendList).
+      2. Amigos em comum no Game It (friends-of-friends).
+      3. Mesma região (país via Steam loccountrycode).
+    """
+    user_id = uid()
+    key, my_steamid = get_steam_creds()
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Quem eu já sigo (para excluir das sugestões)
+    cur.execute("SELECT following_id FROM follows WHERE follower_id=%s", (user_id,))
+    ja_sigo = {r['following_id'] for r in cur.fetchall()}
+    ja_sigo.add(user_id)
+
+    # Amigos em comum (friends-of-friends): quantos dos meus amigos seguem cada candidato
+    cur.execute(
+        """
+        SELECT f2.following_id AS cand, COUNT(*) AS mutuals
+        FROM follows f1
+        JOIN follows f2 ON f2.follower_id = f1.following_id
+        WHERE f1.follower_id = %s AND f2.following_id <> %s
+        GROUP BY f2.following_id
+        """,
+        (user_id, user_id)
+    )
+    mutual_map = {r['cand']: int(r['mutuals']) for r in cur.fetchall()}
+
+    # Candidatos: todos os usuários (com dados básicos), exceto quem já sigo
+    cur.execute(
+        "SELECT id, name, display_name, avatar_url, bio, steam_id FROM users WHERE id <> %s",
+        (user_id,)
+    )
+    todos = [r for r in cur.fetchall() if r['id'] not in ja_sigo]
+    cur.close()
+    conn.close()
+
+    # Sinais da Steam (só se eu tiver credenciais)
+    steam_friend_ids = _steam_friend_ids(my_steamid, key) if (my_steamid and key) else set()
+    cand_steamids = [r['steam_id'] for r in todos if r.get('steam_id')]
+    countries = _steam_countries(cand_steamids + ([my_steamid] if my_steamid else []), key) \
+        if key else {}
+    my_country = countries.get(str(my_steamid)) if my_steamid else None
+
+    sugeridos = []
+    for r in todos:
+        cid = r['id']
+        sid = str(r['steam_id']) if r.get('steam_id') else None
+        mutuals = mutual_map.get(cid, 0)
+        is_steam_friend = bool(sid and sid in steam_friend_ids)
+        cand_country = countries.get(sid) if sid else None
+        same_region = bool(my_country and cand_country and my_country == cand_country)
+
+        score = 0
+        motivos = []
+        if is_steam_friend:
+            score += W_STEAM_FRIEND
+            motivos.append({'tipo': 'steam', 'texto': 'Amigo na Steam'})
+        if mutuals > 0:
+            score += min(mutuals * W_MUTUAL, W_MUTUAL_CAP)
+            motivos.append({
+                'tipo': 'mutual',
+                'texto': f'{mutuals} amigo{"s" if mutuals > 1 else ""} em comum'
+            })
+        if same_region:
+            score += W_REGION
+            nome_pais = COUNTRY_NAMES.get(cand_country, cand_country)
+            motivos.append({'tipo': 'region', 'texto': f'Mesma região · {nome_pais}'})
+
+        if score <= 0:
+            continue
+
+        sugeridos.append({
+            'id':       cid,
+            'nickname': _nick(r),
+            'avatar':   r['avatar_url'] or '/static/img/Game It Logo.svg',
+            'bio':      (r.get('bio') or '')[:90],
+            'score':    score,
+            'mutuals':  mutuals,
+            'steam_friend': is_steam_friend,
+            'same_region':  same_region,
+            'motivos':  motivos,
+        })
+
+    sugeridos.sort(key=lambda x: (-x['score'], x['nickname'].lower()))
+    return jsonify({'status': 'success', 'recommendations': sugeridos[:24]})
