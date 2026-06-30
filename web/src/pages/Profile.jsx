@@ -95,6 +95,9 @@ export default function Profile() {
 
   const total = jogos.length;
   const plat = jogos.filter((j) => j.status === '100%').length;
+  const recentes = [...jogos]
+    .sort((a, b) => (b.playtime_forever || 0) - (a.playtime_forever || 0))
+    .slice(0, 12);
 
   return (
     <>
@@ -105,18 +108,7 @@ export default function Profile() {
         <aside className="pcol-left">
           <section className="panel pcard">
             <h3 className="pcard-title">Jogado Recentemente</h3>
-            <div className="recent-list">
-              {jogos.slice(0, 5).map((j) => (
-                <Link to={`/jogo/${encodeURIComponent(j.appid)}`} key={j.appid} className="recent-item">
-                  <img src={steamHeader(j.appid)} alt="" onError={(e) => { e.target.src = DEFAULT_IMG; }} />
-                  <div className="recent-meta">
-                    <span className="recent-name">{j.name}</span>
-                    <span className="recent-pct">{(j.pct || 0).toFixed(0)}%</span>
-                  </div>
-                </Link>
-              ))}
-              {jogos.length === 0 && <p className="empty-msg">Sincronize sua Steam no Progresso.</p>}
-            </div>
+            <RecentCarousel jogos={recentes} />
           </section>
 
           <section className="panel pcard">
@@ -413,6 +405,45 @@ const PLATAFORMAS = [
   { id: 'epic', label: 'Epic Games', icon: 'fa-solid fa-gamepad' },
   { id: 'pc', label: 'Outro/PC', icon: 'fa-solid fa-desktop' },
 ];
+
+function fmtHoras(min) {
+  const m = Number(min) || 0;
+  if (m < 60) return `${m} min`;
+  const h = m / 60;
+  return h >= 100 ? `${Math.round(h)}h` : `${h.toFixed(1)}h`;
+}
+
+function RecentCarousel({ jogos }) {
+  const trackRef = useRef(null);
+  if (!jogos || jogos.length === 0) {
+    return <p className="empty-msg">Sincronize sua Steam no Progresso.</p>;
+  }
+  function scroll(dir) {
+    const el = trackRef.current;
+    if (el) el.scrollBy({ left: dir * 260, behavior: 'smooth' });
+  }
+  return (
+    <div className="recent-carousel">
+      <button className="rc-nav rc-prev" onClick={() => scroll(-1)} aria-label="Anterior"><i className="fa-solid fa-chevron-left" /></button>
+      <div className="recent-track cscroll" ref={trackRef}>
+        {jogos.map((j) => {
+          const plat = PLATAFORMAS.find((p) => p.id === (j.platform || 'steam')) || PLATAFORMAS[0];
+          return (
+            <Link to={`/jogo/${encodeURIComponent(j.appid)}`} key={j.appid} className="rc-item" title={j.name}>
+              <div className="rc-cover">
+                <img src={steamCover(j.appid)} alt={j.name} onError={(e) => { e.target.onerror = null; e.target.src = steamHeader(j.appid); }} />
+                <span className="rc-platform" title={plat.label}><i className={plat.icon} /></span>
+              </div>
+              <span className="rc-name">{j.name}</span>
+              <span className="rc-hours"><i className="fa-regular fa-clock" /> {fmtHoras(j.playtime_forever)}</span>
+            </Link>
+          );
+        })}
+      </div>
+      <button className="rc-nav rc-next" onClick={() => scroll(1)} aria-label="Próximo"><i className="fa-solid fa-chevron-right" /></button>
+    </div>
+  );
+}
 
 function NovaReviewModal({ jogos, onClose, onSaved }) {
   const [gameName, setGameName] = useState('');

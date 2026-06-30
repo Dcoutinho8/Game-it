@@ -116,6 +116,7 @@ def fetch_games_from_steam(with_achievements=True):
             'pct': 0.0,
             'achievements': [],
             'playtime_forever': g.get('playtime_forever', 0),
+            'platform': 'steam',
             'has_stats': bool(g.get('has_community_visible_stats')),
         }
 
@@ -178,7 +179,7 @@ def load_games_from_db(user_id):
     cur  = conn.cursor()
     cur.execute(
         """
-        SELECT appid, name, status, pct, achievements
+        SELECT appid, name, status, pct, achievements, playtime_forever
         FROM user_games WHERE user_id = %s
         ORDER BY pct DESC
         """,
@@ -201,6 +202,8 @@ def load_games_from_db(user_id):
             'name':         r['name'],
             'status':       r['status'],
             'pct':          float(r['pct'] or 0),
+            'playtime_forever': int(r['playtime_forever'] or 0),
+            'platform':     'steam',
             'achievements': r['achievements'] or []
         })
 
