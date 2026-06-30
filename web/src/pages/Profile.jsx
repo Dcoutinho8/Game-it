@@ -20,6 +20,7 @@ export default function Profile() {
   const [composer, setComposer] = useState('');
   const [posting, setPosting] = useState(false);
   const [modal, setModal] = useState(null); // 'editar' | 'review' | 'lista' | 'favoritos'
+  const [viewLista, setViewLista] = useState(null);
   const avatarInput = useRef(null);
   const coverInput = useRef(null);
 
@@ -234,12 +235,13 @@ export default function Profile() {
                 {lists.length === 0 ? (
                   <div className="empty-panel" style={{ gridColumn: '1/-1' }}><i className="fa-solid fa-list" /><p>Nenhuma lista criada.</p></div>
                 ) : lists.map((l) => (
-                  <div className="lista-card" key={l.id}>
+                  <div className="lista-card" key={l.id} onClick={() => setViewLista(l)}>
                     <div className="lista-preview">
                       {(l.preview || []).slice(0, 4).map((src, i) => <img key={i} src={src} alt="" onError={(e) => { e.target.style.visibility = 'hidden'; }} />)}
                     </div>
                     <div className="lista-meta">
                       <p className="lista-title">{l.title}</p>
+                      {l.description && <p className="lista-desc">{l.description}</p>}
                       <p className="lista-count">{l.count} {l.count === 1 ? 'jogo' : 'jogos'}</p>
                     </div>
                   </div>
@@ -293,8 +295,9 @@ export default function Profile() {
 
       {modal === 'editar' && <EditarPerfilModal profile={p} onClose={() => setModal(null)} onSaved={() => { setModal(null); carregarPerfil(); }} />}
       {modal === 'review' && <NovaReviewModal jogos={jogos} onClose={() => setModal(null)} onSaved={() => { setModal(null); api.get('/api/reviews').then(({ data }) => { if (data?.status === 'success') setReviews(data.reviews || []); }); }} />}
-      {modal === 'lista' && <NovaListaModal onClose={() => setModal(null)} onSaved={() => { setModal(null); api.get('/api/lists').then(({ data }) => { if (data?.status === 'success') setLists(data.lists || []); }); }} />}
+      {modal === 'lista' && <NovaListaModal jogos={jogos} onClose={() => setModal(null)} onSaved={() => { setModal(null); api.get('/api/lists').then(({ data }) => { if (data?.status === 'success') setLists(data.lists || []); }); }} />}
       {modal === 'favoritos' && <FavoritosModal jogos={jogos} atuais={favs.map((f) => String(f.appid))} onClose={() => setModal(null)} onSaved={() => { setModal(null); carregarPerfil(); }} />}
+      {viewLista && <ListaViewModal list={viewLista} onClose={() => setViewLista(null)} />}
     </>
   );
 }
@@ -324,6 +327,7 @@ function PostCard({ post, meName, onLike, onDelete, readonly }) {
 }
 
 function ReviewCard({ review, onDelete }) {
+  const plat = PLATAFORMAS.find((p) => p.id === review.platform);
   return (
     <div className="review-card panel">
       <div className="review-head">
@@ -334,6 +338,12 @@ function ReviewCard({ review, onDelete }) {
             {[1, 2, 3, 4, 5].map((s) => <i key={s} className={(s <= review.rating ? 'fa-solid' : 'fa-regular') + ' fa-star'} />)}
           </div>
           <p className="review-time">{review.time} • {review.status}{review.platinum ? ' • 🏆 Platinado' : ''}</p>
+          <div className="review-tags">
+            {plat && <span className="review-tag"><i className={plat.icon} /> {plat.label}</span>}
+            {(review.started_at || review.finished_at) && (
+              <span className="review-tag"><i className="fa-regular fa-calendar" /> {fmtPeriodo(review.started_at, review.finished_at)}</span>
+            )}
+          </div>
         </div>
         <button className="post-del" onClick={() => onDelete(review.id)} title="Apagar"><i className="fa-solid fa-trash" /></button>
       </div>
@@ -344,6 +354,19 @@ function ReviewCard({ review, onDelete }) {
       </div>
     </div>
   );
+}
+
+function fmtData(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function fmtPeriodo(ini, fim) {
+  if (ini && fim) return `${fmtData(ini)} → ${fmtData(fim)}`;
+  if (fim) return `Concluído em ${fmtData(fim)}`;
+  if (ini) return `Desde ${fmtData(ini)}`;
+  return '';
 }
 
 function Modal({ title, description, children, footer, onClose, size = 'md' }) {
@@ -382,51 +405,110 @@ function EditarPerfilModal({ profile, onClose, onSaved }) {
   );
 }
 
+const PLATAFORMAS = [
+  { id: 'steam', label: 'Steam', icon: 'fa-brands fa-steam' },
+  { id: 'playstation', label: 'PlayStation', icon: 'fa-brands fa-playstation' },
+  { id: 'xbox', label: 'Xbox', icon: 'fa-brands fa-xbox' },
+  { id: 'nintendo', label: 'Switch', icon: 'fa-solid fa-gamepad' },
+  { id: 'epic', label: 'Epic Games', icon: 'fa-solid fa-gamepad' },
+  { id: 'pc', label: 'Outro/PC', icon: 'fa-solid fa-desktop' },
+];
+
 function NovaReviewModal({ jogos, onClose, onSaved }) {
   const [gameName, setGameName] = useState('');
   const [appid, setAppid] = useState('');
+  const [busca, setBusca] = useState('');
   const [rating, setRating] = useState(0);
   const [content, setContent] = useState('');
   const [spoilers, setSpoilers] = useState(false);
   const [status, setStatus] = useState('Completed');
+  const [platform, setPlatform] = useState('steam');
+  const [startedAt, setStartedAt] = useState('');
+  const [finishedAt, setFinishedAt] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Ao escolher um jogo da biblioteca, casa o nome com o appid (capa/links).
-  function onGameInput(value) {
-    setGameName(value);
-    const jogo = jogos.find((j) => j.name.toLowerCase() === value.toLowerCase());
-    setAppid(jogo ? String(jogo.appid) : '');
+  // Seleciona um jogo da biblioteca pela capa.
+  function escolher(j) {
+    setAppid(String(j.appid));
+    setGameName(j.name);
   }
 
+  const filtrados = jogos.filter((j) => j.name.toLowerCase().includes(busca.toLowerCase()));
+  // Permite avaliar um jogo fora da biblioteca digitando o nome na busca.
+  const usarBusca = busca.trim() && !jogos.some((j) => j.name.toLowerCase() === busca.trim().toLowerCase());
+
   async function salvar() {
-    if (!gameName.trim() || rating < 1) { return; }
+    const nome = gameName.trim() || busca.trim();
+    if (!nome || rating < 1) { return; }
     setSaving(true);
-    const { data } = await api.post('/api/reviews', { appid, game_name: gameName.trim(), rating, content, spoilers, status });
+    const { data } = await api.post('/api/reviews', {
+      appid, game_name: nome, rating, content, spoilers, status, platform,
+      started_at: startedAt || null, finished_at: finishedAt || null,
+    });
     setSaving(false);
     if (data?.status === 'success') onSaved(); else alert(data?.message || 'Erro');
   }
+
+  const nomeFinal = gameName.trim() || busca.trim();
   return (
     <Modal
       title="Nova Avaliação"
+      size="lg"
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar} disabled={saving || !gameName.trim() || rating < 1}>Publicar avaliação</Button>
+          <Button onClick={salvar} disabled={saving || !nomeFinal || rating < 1}>Publicar avaliação</Button>
         </>
       }
     >
-      <Label>Jogo</Label>
-      <Input list="lib-jogos" value={gameName} placeholder="Digite ou escolha um jogo..." onChange={(e) => onGameInput(e.target.value)} />
-      <datalist id="lib-jogos">
-        {jogos.map((j) => <option key={j.appid} value={j.name} />)}
-      </datalist>
+      <Label>Escolha o jogo</Label>
+      <SearchInput placeholder="Buscar jogo na sua biblioteca..." value={busca}
+                   onChange={(e) => setBusca(e.target.value)} onClear={() => setBusca('')} />
+      <div className="game-pick-grid">
+        {filtrados.slice(0, 24).map((j) => (
+          <button type="button" key={j.appid} title={j.name}
+                  className={'game-pick' + (appid === String(j.appid) ? ' selected' : '')}
+                  onClick={() => escolher(j)}>
+            <img src={steamCover(j.appid)} alt="" onError={(e) => { e.target.onerror = null; e.target.src = steamHeader(j.appid); }} />
+            {appid === String(j.appid) && <span className="game-pick-check"><i className="fa-solid fa-check" /></span>}
+            <span className="game-pick-name">{j.name}</span>
+          </button>
+        ))}
+        {filtrados.length === 0 && !usarBusca && <p className="empty-msg" style={{ gridColumn: '1/-1' }}>Nenhum jogo encontrado.</p>}
+      </div>
+      {usarBusca && (
+        <p className="pick-hint"><i className="fa-solid fa-circle-info" /> Avaliar "<strong>{busca.trim()}</strong>" como jogo fora da biblioteca.</p>
+      )}
+      {nomeFinal && <p className="pick-selected">Selecionado: <strong>{nomeFinal}</strong></p>}
+
+      <Label>Plataforma</Label>
+      <div className="plat-chips">
+        {PLATAFORMAS.map((p) => (
+          <button type="button" key={p.id} className={'plat-chip' + (platform === p.id ? ' active' : '')} onClick={() => setPlatform(p.id)}>
+            <i className={p.icon} /> {p.label}
+          </button>
+        ))}
+      </div>
+
       <Label>Nota</Label>
-      <div className="review-stars" style={{ fontSize: 24, marginBottom: 2 }}>
+      <div className="review-stars" style={{ fontSize: 26, marginBottom: 2 }}>
         {[1, 2, 3, 4, 5].map((s) => (
           <i key={s} className={(s <= rating ? 'fa-solid' : 'fa-regular') + ' fa-star'} style={{ cursor: 'pointer', color: s <= rating ? '#fbbf24' : undefined }} onClick={() => setRating(s)} />
         ))}
       </div>
+
+      <div className="form-row-2">
+        <div>
+          <Label>Início</Label>
+          <Input type="date" value={startedAt} max={finishedAt || undefined} onChange={(e) => setStartedAt(e.target.value)} />
+        </div>
+        <div>
+          <Label>Fim</Label>
+          <Input type="date" value={finishedAt} min={startedAt || undefined} onChange={(e) => setFinishedAt(e.target.value)} />
+        </div>
+      </div>
+
       <Label>Status</Label>
       <Select value={status} onChange={(e) => setStatus(e.target.value)}>
         <option value="Completed">Concluído</option>
@@ -441,20 +523,38 @@ function NovaReviewModal({ jogos, onClose, onSaved }) {
   );
 }
 
-function NovaListaModal({ onClose, onSaved }) {
+function NovaListaModal({ jogos, onClose, onSaved }) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [kind, setKind] = useState('custom');
+  const [busca, setBusca] = useState('');
+  const [sel, setSel] = useState([]); // [{appid, name}]
   const [saving, setSaving] = useState(false);
+
+  function toggle(j) {
+    const id = String(j.appid);
+    setSel((s) => s.some((x) => x.appid === id)
+      ? s.filter((x) => x.appid !== id)
+      : [...s, { appid: id, name: j.name }]);
+  }
+  const isSel = (appid) => sel.some((x) => x.appid === String(appid));
+
   async function salvar() {
     if (!title.trim()) { alert('Dê um título.'); return; }
     setSaving(true);
-    const { data } = await api.post('/api/lists', { title, kind });
+    const { data } = await api.post('/api/lists', {
+      title: title.trim(), description: description.trim(), kind,
+      games: kind === 'custom' ? sel : [],
+    });
     setSaving(false);
     if (data?.status === 'success') onSaved(); else alert(data?.message || 'Erro');
   }
+
+  const filtrados = jogos.filter((j) => j.name.toLowerCase().includes(busca.toLowerCase()));
   return (
     <Modal
       title="Nova Lista"
+      size="lg"
       onClose={onClose}
       footer={
         <>
@@ -465,11 +565,54 @@ function NovaListaModal({ onClose, onSaved }) {
     >
       <Label>Título</Label>
       <Input value={title} maxLength={120} placeholder="Ex.: Para zerar em 2025" onChange={(e) => setTitle(e.target.value)} />
+      <Label>Texto</Label>
+      <Textarea rows={3} value={description} maxLength={2000} placeholder="Escreva sobre essa lista..." onChange={(e) => setDescription(e.target.value)} />
       <Label>Tipo</Label>
       <Select value={kind} onChange={(e) => setKind(e.target.value)}>
-        <option value="custom">Personalizada</option>
+        <option value="custom">Personalizada (escolher jogos)</option>
         <option value="all">Todos os jogos (auto)</option>
       </Select>
+      {kind === 'custom' && (
+        <>
+          <Label>Jogos {sel.length > 0 && `(${sel.length})`}</Label>
+          <SearchInput placeholder="Buscar jogo..." value={busca} onChange={(e) => setBusca(e.target.value)} onClear={() => setBusca('')} />
+          <div className="game-pick-grid">
+            {filtrados.slice(0, 30).map((j) => (
+              <button type="button" key={j.appid} title={j.name}
+                      className={'game-pick' + (isSel(j.appid) ? ' selected' : '')}
+                      onClick={() => toggle(j)}>
+                <img src={steamCover(j.appid)} alt="" onError={(e) => { e.target.onerror = null; e.target.src = steamHeader(j.appid); }} />
+                {isSel(j.appid) && <span className="game-pick-check"><i className="fa-solid fa-check" /></span>}
+                <span className="game-pick-name">{j.name}</span>
+              </button>
+            ))}
+            {jogos.length === 0 && <p className="empty-msg" style={{ gridColumn: '1/-1' }}>Sincronize sua biblioteca no Progresso.</p>}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function ListaViewModal({ list, onClose }) {
+  const [full, setFull] = useState(list);
+  useEffect(() => {
+    api.get(`/api/lists/${list.id}`).then(({ data }) => { if (data?.status === 'success') setFull({ ...list, ...data.list }); });
+  }, [list]);
+  const games = full.games || [];
+  return (
+    <Modal title={full.title} description={`${full.count || games.length} ${(full.count || games.length) === 1 ? 'jogo' : 'jogos'}`} size="lg" onClose={onClose}
+           footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
+      {full.description && <p className="lista-view-text">{full.description}</p>}
+      <div className="game-pick-grid view">
+        {games.map((g) => (
+          <Link to={`/jogo/${encodeURIComponent(g.appid)}`} key={g.appid} className="game-pick" title={g.name}>
+            <img src={g.cover || steamCover(g.appid)} alt="" onError={(e) => { e.target.onerror = null; e.target.src = steamHeader(g.appid); }} />
+            <span className="game-pick-name">{g.name}</span>
+          </Link>
+        ))}
+        {games.length === 0 && <p className="empty-msg" style={{ gridColumn: '1/-1' }}>Lista sem jogos ainda.</p>}
+      </div>
     </Modal>
   );
 }

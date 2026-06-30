@@ -442,7 +442,7 @@ def list_reviews():
     cur = conn.cursor()
     cur.execute(
         "SELECT r.id, r.appid, r.game_name, r.rating, r.content, r.created_at, "
-        "       r.platform, r.contains_spoilers, r.status, r.started_at, r.replay, r.platinum, "
+        "       r.platform, r.contains_spoilers, r.status, r.started_at, r.finished_at, r.replay, r.platinum, "
         "       (SELECT COUNT(*) FROM review_likes l WHERE l.review_id=r.id) AS likes, "
         "       EXISTS(SELECT 1 FROM review_likes l WHERE l.review_id=r.id AND l.user_id=%s) AS liked "
         "FROM reviews r WHERE r.user_id=%s ORDER BY r.created_at DESC",
@@ -461,6 +461,7 @@ def list_reviews():
         'spoilers': bool(r.get('contains_spoilers')),
         'status': r.get('status') or 'Completed',
         'started_at': r['started_at'].isoformat() if r.get('started_at') else None,
+        'finished_at': r['finished_at'].isoformat() if r.get('finished_at') else None,
         'replay': bool(r.get('replay')),
         'platinum': bool(r.get('platinum')),
         'likes': r.get('likes') or 0,
@@ -491,6 +492,7 @@ def create_review():
     status = clamp_text(d.get('status'), 30) or 'Completed'
     replay = bool(d.get('replay'))
     started_at = _parse_date(d.get('started_at'))
+    finished_at = _parse_date(d.get('finished_at'))
 
     conn = get_connection()
     cur = conn.cursor()
@@ -501,10 +503,10 @@ def create_review():
     cur.execute(
         "INSERT INTO reviews "
         "(user_id, appid, game_name, rating, content, platform, contains_spoilers, "
-        " status, started_at, replay, platinum) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        " status, started_at, finished_at, replay, platinum) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
         (user_id, appid, game_name, rating, content, platform, spoilers,
-         status, started_at, replay, platinum)
+         status, started_at, finished_at, replay, platinum)
     )
     rid = cur.fetchone()['id']
 
@@ -686,7 +688,7 @@ def list_lists():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, title, kind, platform, created_at "
+        "SELECT id, title, description, kind, platform, created_at "
         "FROM game_lists WHERE user_id=%s ORDER BY created_at DESC",
         (user_id,)
     )
@@ -704,6 +706,7 @@ def list_lists():
         result.append({
             'id': lst['id'],
             'title': lst['title'],
+            'description': lst.get('description') or '',
             'kind': lst['kind'],
             'platform': lst['platform'],
             'count': count,
@@ -721,8 +724,12 @@ def create_list():
     user_id = uid()
     d = request.get_json() or {}
     title = clamp_text(d.get('title'), 120)
+    description = clamp_text(d.get('description'), 2000)
     kind = clamp_text(d.get('kind'), 30) or 'custom'
     platform = clamp_text(d.get('platform'), 30) or None
+    games = d.get('games') or []
+    if not isinstance(games, list):
+        games = []
     if kind not in LIST_KINDS:
         kind = 'custom'
     if not title:
@@ -731,11 +738,23 @@ def create_list():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO game_lists (user_id, title, kind, platform) "
-        "VALUES (%s, %s, %s, %s) RETURNING id",
-        (user_id, title, kind, platform)
+        "INSERT INTO game_lists (user_id, title, description, kind, platform) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (user_id, title, description, kind, platform)
     )
     list_id = cur.fetchone()['id']
+
+    # Jogos escolhidos manualmente na criação
+    for g in games[:200]:
+        appid = clamp_text(g.get('appid') if isinstance(g, dict) else g, 20)
+        name = clamp_text(g.get('name') if isinstance(g, dict) else '', 255)
+        if not appid:
+            continue
+        cur.execute(
+            "INSERT INTO list_games (list_id, appid, name, platform) "
+            "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
+            (list_id, appid, name, 'steam')
+        )
 
     # Auto-popula listas dinâmicas a partir da biblioteca
     if kind in ('all', 'platform'):
@@ -787,6 +806,7 @@ def get_list(list_id):
         'list': {
             'id': lst['id'],
             'title': lst['title'],
+            'description': lst.get('description') or '',
             'kind': lst['kind'],
             'platform': lst['platform'],
             'count': len(games),

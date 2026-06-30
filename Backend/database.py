@@ -195,6 +195,10 @@ def init_db():
                 ALTER TABLE reviews ADD COLUMN started_at DATE;
             END IF;
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='reviews' AND column_name='finished_at') THEN
+                ALTER TABLE reviews ADD COLUMN finished_at DATE;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                            WHERE table_name='reviews' AND column_name='replay') THEN
                 ALTER TABLE reviews ADD COLUMN replay BOOLEAN DEFAULT FALSE;
             END IF;
@@ -237,6 +241,17 @@ def init_db():
         );
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_lists_user ON game_lists(user_id);")
+
+    # Coluna de descrição (texto da lista, estilo tweet) — adiciona se faltar
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='game_lists' AND column_name='description') THEN
+                ALTER TABLE game_lists ADD COLUMN description TEXT;
+            END IF;
+        END$$;
+    """)
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS list_games (

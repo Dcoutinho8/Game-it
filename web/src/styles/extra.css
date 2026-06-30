@@ -142,7 +142,73 @@
 .lista-preview img { width: 100%; height: 100%; object-fit: cover; }
 .lista-meta { padding: 10px 12px; }
 .lista-title { font-weight: 700; color: var(--text-heading, #e2e8f0); font-size: 14px; }
-.lista-count { font-size: 12px; color: var(--text-muted, #94a3b8); }
+.lista-desc {
+  font-size: 12.5px; color: var(--text-body, #cbd5e1); margin-top: 4px;
+  line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; white-space: pre-wrap; word-break: break-word;
+}
+.lista-count { font-size: 12px; color: var(--text-muted, #94a3b8); margin-top: 6px; }
+
+/* Tags de review (plataforma / período) */
+.review-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.review-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(99,102,241,.12); color: #a5b4fc;
+  border-radius: 20px; padding: 3px 10px; font-size: 11.5px; font-weight: 600;
+}
+
+/* Seletor de jogos por capa (review/lista) */
+.game-pick-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin: 12px 0 4px; max-height: 320px; overflow-y: auto; padding-right: 4px;
+}
+.game-pick-grid.view { max-height: none; }
+.game-pick {
+  position: relative; display: flex; flex-direction: column; gap: 4px;
+  background: transparent; border: 2px solid transparent; border-radius: 10px;
+  padding: 0; cursor: pointer; text-align: left; text-decoration: none; overflow: hidden;
+  transition: border-color .15s, transform .15s;
+}
+.game-pick:hover { transform: translateY(-2px); }
+.game-pick img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; display: block; }
+.game-pick.selected { border-color: #6366F1; }
+.game-pick-check {
+  position: absolute; top: 6px; right: 6px; width: 22px; height: 22px;
+  background: #6366F1; color: #fff; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.game-pick-name {
+  font-size: 11px; color: var(--text-body, #cbd5e1); line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px 4px;
+}
+.pick-hint, .pick-selected { font-size: 12.5px; margin: 6px 0 0; }
+.pick-hint { color: var(--text-muted, #94a3b8); display: flex; align-items: center; gap: 6px; }
+.pick-hint i { color: #6366F1; }
+.pick-selected { color: var(--text-body, #cbd5e1); }
+
+/* Chips de plataforma */
+.plat-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.plat-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-input, rgba(255,255,255,.05));
+  border: 1px solid var(--border, rgba(255,255,255,.1));
+  color: var(--text-body, #cbd5e1); border-radius: 20px;
+  padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.plat-chip:hover { border-color: #6366F1; }
+.plat-chip.active { background: rgba(99,102,241,.2); border-color: #6366F1; color: #fff; }
+
+/* Linha com 2 campos (datas) */
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ui-input[type="date"] { color-scheme: dark; }
+html.light .ui-input[type="date"] { color-scheme: light; }
+
+/* Texto da lista no modal de visualização */
+.lista-view-text {
+  font-size: 14px; line-height: 1.55; color: var(--text-body, #cbd5e1);
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
+}
 
 /* Recentes (perfil) */
 .recent-item { display: flex; gap: 10px; align-items: center; padding: 6px 0; text-decoration: none; }
