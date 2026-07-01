@@ -718,6 +718,7 @@ html.light .modal-box { box-shadow: 0 20px 50px rgba(0,0,0,0.16); }
 
 .profile-layout {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr) 320px;
@@ -732,7 +733,8 @@ html.light .modal-box { box-shadow: 0 20px 50px rgba(0,0,0,0.16); }
     gap: 22px;
     position: sticky;
     top: 12px;
-    max-height: calc(100vh - 88px);
+    align-self: start;
+    max-height: calc(100vh - 96px);
     overflow-y: auto;
     padding-right: 2px;
     scrollbar-width: thin;
