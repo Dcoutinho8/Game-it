@@ -291,6 +291,46 @@ def init_db():
         );
     """)
 
+    # ── Contas de plataformas conectadas (HUB multiplataforma) ──
+    # Steam usa dados reais (user_games); demais plataformas guardam
+    # dados informados manualmente pelo usuário (sem API pública oficial).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS platform_connections (
+            user_id            INTEGER      REFERENCES users(id) ON DELETE CASCADE,
+            platform           VARCHAR(30)  NOT NULL,
+            external_id        VARCHAR(120),
+            username           VARCHAR(120),
+            avatar_url         TEXT,
+            total_games        INTEGER      DEFAULT 0,
+            total_achievements INTEGER      DEFAULT 0,
+            total_platinums    INTEGER      DEFAULT 0,
+            total_hours        INTEGER      DEFAULT 0,
+            favorite_game      VARCHAR(255),
+            favorite_cover     TEXT,
+            access_token       TEXT,
+            refresh_token      TEXT,
+            connected_at       TIMESTAMP    DEFAULT NOW(),
+            last_synced        TIMESTAMP    DEFAULT NOW(),
+            PRIMARY KEY (user_id, platform)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_platconn_user ON platform_connections(user_id);")
+
+    # ── Personagens favoritos do perfil ─────────────────
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='users' AND column_name='favorite_characters') THEN
+                ALTER TABLE users ADD COLUMN favorite_characters JSONB DEFAULT '[]'::jsonb;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='users' AND column_name='favorite_platform') THEN
+                ALTER TABLE users ADD COLUMN favorite_platform VARCHAR(30);
+            END IF;
+        END$$;
+    """)
+
     conn.commit()
     cur.close()
     conn.close()

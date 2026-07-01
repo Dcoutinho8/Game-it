@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import './styles/style.css';
 import './styles/ui.css';
 import './styles/extra.css';
+import './styles/hub.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

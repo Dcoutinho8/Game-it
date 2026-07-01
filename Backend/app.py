@@ -17,6 +17,7 @@ from routes.gemini import gemini_bp
 from routes.notes  import notes_bp
 from routes.auth   import auth_bp
 from routes.social import social_bp
+from routes.hub    import hub_bp
 
 # Pasta com o build da SPA React (gerado por `npm run build` em web/)
 WEB_DIST = os.path.join(ROOT, 'web', 'dist')
@@ -63,6 +64,7 @@ app.register_blueprint(steam_bp)
 app.register_blueprint(gemini_bp)
 app.register_blueprint(notes_bp)
 app.register_blueprint(social_bp)
+app.register_blueprint(hub_bp)
 
 
 # ── Servir a SPA React (web/dist) ────────────────────────

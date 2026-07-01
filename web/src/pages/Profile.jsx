@@ -6,6 +6,11 @@ import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { escapeHtml, steamCover, steamHeader, DEFAULT_IMG } from '../lib/format';
 import { Dialog, Button, Input, Textarea, Select, Label, SearchInput } from '../components/ui/index.jsx';
+import {
+  PlatformCarousel, PlatinumProgress, ActivityTimeline,
+  CompareModal, CompareWidget, readPinnedCompare, clearPinnedCompare,
+  FavoriteCharacters, GameBadges,
+} from '../components/hub/index.jsx';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -21,6 +26,8 @@ export default function Profile() {
   const [posting, setPosting] = useState(false);
   const [modal, setModal] = useState(null); // 'editar' | 'review' | 'lista' | 'favoritos'
   const [viewLista, setViewLista] = useState(null);
+  const [comparing, setComparing] = useState(false);
+  const [pinned, setPinned] = useState(() => readPinnedCompare());
   const avatarInput = useRef(null);
   const coverInput = useRef(null);
 
@@ -127,6 +134,9 @@ export default function Profile() {
             </div>
           </section>
 
+          <FavoriteCharacters />
+          <GameBadges />
+
           <section className="panel pcard">
             <h3 className="pcard-title">Avaliações</h3>
             <div className="rating-bars">
@@ -154,6 +164,9 @@ export default function Profile() {
               </button>
             </div>
             <button className="btn-edit-profile" onClick={() => setModal('editar')}>Editar Perfil</button>
+            <button className="btn-compare-profile" onClick={() => setComparing(true)} title="Comparar com amigo">
+              <i className="fa-solid fa-user-group" /> Comparar
+            </button>
             <div className="profile-avatar">
               <img src={p.avatar || DEFAULT_IMG} alt="Avatar" onError={(e) => { e.target.src = DEFAULT_IMG; }} />
               <button className="btn-change-avatar" onClick={() => avatarInput.current?.click()} title="Trocar foto">
@@ -186,6 +199,11 @@ export default function Profile() {
               </div>
             </div>
           </section>
+
+          {/* Cabeçalho expandido do HUB multiplataforma (acima do feed) */}
+          <PlatformCarousel />
+          <PlatinumProgress />
+          <ActivityTimeline />
 
           <div className="profile-tabs">
             {['posts', 'reviews', 'listas', 'jogos', 'curtidas'].map((t) => (
@@ -287,6 +305,8 @@ export default function Profile() {
         <aside className="pcol-right">
           <FriendsPanel />
 
+          <CompareWidget pinned={pinned} onClear={() => { clearPinnedCompare(); setPinned(null); }} />
+
           <section className="panel pcard">
             <h3 className="pcard-title">Resumo</h3>
             <div className="stats-grid">
@@ -306,6 +326,7 @@ export default function Profile() {
       {modal === 'lista' && <NovaListaModal jogos={jogos} onClose={() => setModal(null)} onSaved={() => { setModal(null); api.get('/api/lists').then(({ data }) => { if (data?.status === 'success') setLists(data.lists || []); }); }} />}
       {modal === 'favoritos' && <FavoritosModal jogos={jogos} atuais={favs.map((f) => String(f.appid))} onClose={() => setModal(null)} onSaved={() => { setModal(null); carregarPerfil(); }} />}
       {viewLista && <ListaViewModal list={viewLista} onClose={() => setViewLista(null)} />}
+      {comparing && <CompareModal onClose={() => setComparing(false)} onPinned={(r) => setPinned(r)} />}
     </>
   );
 }
